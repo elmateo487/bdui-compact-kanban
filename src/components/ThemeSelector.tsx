@@ -49,6 +49,7 @@ export function ThemeSelector({ onClose }: ThemeSelectorProps) {
       borderColor="magenta"
       padding={1}
       width={60}
+      backgroundColor="black"
     >
       <Text bold color="magenta">
         Select Theme

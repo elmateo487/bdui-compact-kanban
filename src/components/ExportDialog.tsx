@@ -116,6 +116,7 @@ export function ExportDialog({ issue, onClose }: ExportDialogProps) {
       borderColor="green"
       padding={1}
       width={70}
+      backgroundColor="black"
     >
       <Text bold color="green">
         Export Issue: {issue.id}

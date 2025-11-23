@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { updateIssue, type UpdateIssueParams } from '../bd/commands';
 import type { Issue } from '../types';
+import { useBeadsStore } from '../state/store';
 
 interface EditIssueFormProps {
   issue: Issue;
@@ -14,6 +15,9 @@ type FormField = 'title' | 'description' | 'priority' | 'status' | 'assignee' | 
 const STATUSES: Array<'open' | 'closed' | 'in_progress' | 'blocked'> = ['open', 'in_progress', 'blocked', 'closed'];
 
 export function EditIssueForm({ issue, onClose, onSuccess }: EditIssueFormProps) {
+  const terminalWidth = useBeadsStore(state => state.terminalWidth);
+  const terminalHeight = useBeadsStore(state => state.terminalHeight);
+
   const [currentField, setCurrentField] = useState<FormField>('title');
   const [formData, setFormData] = useState({
     title: issue.title,
@@ -152,89 +156,129 @@ export function EditIssueForm({ issue, onClose, onSuccess }: EditIssueFormProps)
   };
 
   return (
-    <Box
-      flexDirection="column"
-      borderStyle="double"
-      borderColor="yellow"
-      padding={1}
-      width={80}
-    >
-      <Text bold color="yellow">
-        Edit Issue: {issue.id}
-      </Text>
-      <Text dimColor>
-        ESC to cancel | Tab/Shift+Tab to navigate | Enter to submit
-      </Text>
-
-      <Box flexDirection="column" marginTop={1}>
-        {/* Title */}
-        <Box marginBottom={1}>
-          <Text color={currentField === 'title' ? 'yellow' : 'gray'} bold={currentField === 'title'}>
-            Title:
+    <Box flexDirection="column" width={terminalWidth} height={terminalHeight}>
+      {/* Header */}
+      <Box flexDirection="column" marginBottom={1}>
+        <Box justifyContent="space-between">
+          <Text bold color="yellow">
+            Edit Issue: {issue.id}
           </Text>
-          <Text>{formData.title}</Text>
-          {currentField === 'title' && <Text dimColor>█</Text>}
+          <Text dimColor>
+            {terminalWidth}x{terminalHeight}
+          </Text>
+        </Box>
+        <Text dimColor>
+          ESC to cancel | Tab/Shift+Tab to navigate fields | Enter to submit
+        </Text>
+      </Box>
+
+      {/* Form Content */}
+      <Box flexDirection="column" padding={2} borderStyle="single" borderColor="yellow">
+        {/* Title */}
+        <Box flexDirection="column" marginBottom={2}>
+          <Text color={currentField === 'title' ? 'yellow' : 'white'} bold>
+            Title {currentField === 'title' && <Text color="yellow">(editing)</Text>}
+          </Text>
+          <Box borderStyle="single" borderColor={currentField === 'title' ? 'yellow' : 'gray'} paddingX={1}>
+            <Text>{formData.title}</Text>
+            {currentField === 'title' && <Text dimColor>█</Text>}
+          </Box>
         </Box>
 
         {/* Description */}
-        <Box marginBottom={1}>
-          <Text color={currentField === 'description' ? 'yellow' : 'gray'} bold={currentField === 'description'}>
-            Description:
+        <Box flexDirection="column" marginBottom={2}>
+          <Text color={currentField === 'description' ? 'yellow' : 'white'} bold>
+            Description {currentField === 'description' && <Text color="yellow">(editing)</Text>}
           </Text>
-          <Text>{formData.description || <Text dimColor>(empty)</Text>}</Text>
-          {currentField === 'description' && <Text dimColor>█</Text>}
+          <Box borderStyle="single" borderColor={currentField === 'description' ? 'yellow' : 'gray'} paddingX={1}>
+            <Text>{formData.description || <Text dimColor>(no description)</Text>}</Text>
+            {currentField === 'description' && <Text dimColor>█</Text>}
+          </Box>
         </Box>
 
-        {/* Priority */}
-        <Box marginBottom={1}>
-          <Text color={currentField === 'priority' ? 'yellow' : 'gray'} bold={currentField === 'priority'}>
-            Priority:
-          </Text>
-          <Text>
-            P{formData.priority} {getPriorityLabel(formData.priority)}
-          </Text>
-          {currentField === 'priority' && <Text dimColor> (use ↑/↓)</Text>}
-        </Box>
+        {/* Priority, Status, and Type in a row */}
+        <Box gap={4} marginBottom={2}>
+          {/* Priority */}
+          <Box flexDirection="column" width="33%">
+            <Text color={currentField === 'priority' ? 'yellow' : 'white'} bold>
+              Priority {currentField === 'priority' && <Text color="yellow">(use ↑/↓)</Text>}
+            </Text>
+            <Box borderStyle="single" borderColor={currentField === 'priority' ? 'yellow' : 'gray'} paddingX={1}>
+              <Text>
+                P{formData.priority} - {getPriorityLabel(formData.priority)}
+              </Text>
+            </Box>
+          </Box>
 
-        {/* Status */}
-        <Box marginBottom={1}>
-          <Text color={currentField === 'status' ? 'yellow' : 'gray'} bold={currentField === 'status'}>
-            Status:
-          </Text>
-          <Text>{formData.status}</Text>
-          {currentField === 'status' && <Text dimColor> (use ↑/↓)</Text>}
+          {/* Status */}
+          <Box flexDirection="column" width="33%">
+            <Text color={currentField === 'status' ? 'yellow' : 'white'} bold>
+              Status {currentField === 'status' && <Text color="yellow">(use ↑/↓)</Text>}
+            </Text>
+            <Box borderStyle="single" borderColor={currentField === 'status' ? 'yellow' : 'gray'} paddingX={1}>
+              <Text>{formData.status}</Text>
+            </Box>
+          </Box>
+
+          {/* Issue Type (read-only) */}
+          <Box flexDirection="column" width="33%">
+            <Text color="white" bold>
+              Type <Text dimColor>(read-only)</Text>
+            </Text>
+            <Box borderStyle="single" borderColor="gray" paddingX={1}>
+              <Text dimColor>{issue.issueType || 'task'}</Text>
+            </Box>
+          </Box>
         </Box>
 
         {/* Assignee */}
-        <Box marginBottom={1}>
-          <Text color={currentField === 'assignee' ? 'yellow' : 'gray'} bold={currentField === 'assignee'}>
-            Assignee:
+        <Box flexDirection="column" marginBottom={2}>
+          <Text color={currentField === 'assignee' ? 'yellow' : 'white'} bold>
+            Assignee {currentField === 'assignee' && <Text color="yellow">(editing)</Text>}
           </Text>
-          <Text>{formData.assignee || <Text dimColor>(none)</Text>}</Text>
-          {currentField === 'assignee' && <Text dimColor>█</Text>}
+          <Box borderStyle="single" borderColor={currentField === 'assignee' ? 'yellow' : 'gray'} paddingX={1}>
+            <Text>{formData.assignee || <Text dimColor>(unassigned)</Text>}</Text>
+            {currentField === 'assignee' && <Text dimColor>█</Text>}
+          </Box>
         </Box>
 
         {/* Labels */}
-        <Box marginBottom={1}>
-          <Text color={currentField === 'labels' ? 'yellow' : 'gray'} bold={currentField === 'labels'}>
-            Labels:
+        <Box flexDirection="column" marginBottom={2}>
+          <Text color={currentField === 'labels' ? 'yellow' : 'white'} bold>
+            Labels {currentField === 'labels' && <Text color="yellow">(editing)</Text>}
           </Text>
-          <Text>{formData.labels || <Text dimColor>(none)</Text>}</Text>
-          {currentField === 'labels' && <Text dimColor>█</Text>}
+          <Box borderStyle="single" borderColor={currentField === 'labels' ? 'yellow' : 'gray'} paddingX={1}>
+            <Text>{formData.labels || <Text dimColor>(no labels - comma-separated)</Text>}</Text>
+            {currentField === 'labels' && <Text dimColor>█</Text>}
+          </Box>
         </Box>
+
+        {/* Status messages */}
+        {error && (
+          <Box marginTop={1} borderStyle="single" borderColor="red" paddingX={1}>
+            <Text color="red" bold>Error: </Text>
+            <Text color="red">{error}</Text>
+          </Box>
+        )}
+
+        {isSubmitting && (
+          <Box marginTop={1}>
+            <Text color="yellow">Updating issue...</Text>
+          </Box>
+        )}
       </Box>
 
-      {error && (
-        <Box marginTop={1}>
-          <Text color="red">{error}</Text>
+      {/* Footer */}
+      <Box marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
+        <Box justifyContent="space-between">
+          <Text dimColor>
+            Tab/Shift+Tab: Navigate | ↑/↓: Change values | Enter: Submit | ESC: Cancel
+          </Text>
+          <Text color="yellow">
+            Field {currentFieldIndex + 1}/{fields.length}
+          </Text>
         </Box>
-      )}
-
-      {isSubmitting && (
-        <Box marginTop={1}>
-          <Text color="yellow">Updating issue...</Text>
-        </Box>
-      )}
+      </Box>
     </Box>
   );
 }
