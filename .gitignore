@@ -10,3 +10,6 @@ bdui-*
 
 # Test data
 .beads/
+
+# Homebrew tap (separate repo)
+homebrew-tap/
