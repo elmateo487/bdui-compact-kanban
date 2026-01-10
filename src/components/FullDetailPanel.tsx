@@ -158,13 +158,31 @@ export function FullDetailPanel({ issue }: FullDetailPanelProps) {
             const statusIcon = isDone ? '[x]' : '[ ]';
             const baseColor = isDone ? theme.colors.success : theme.colors.text;
             const color = isSelected ? theme.colors.primary : baseColor;
+
+            // Count child's subtasks completion
+            let childCompleted = 0;
+            const childTotal = child.children?.length || 0;
+            if (child.children) {
+              for (const grandchildId of child.children) {
+                const grandchild = data.byId.get(grandchildId);
+                if (grandchild && grandchild.status === 'closed') {
+                  childCompleted++;
+                }
+              }
+            }
+            const hasSubtasks = childTotal > 0;
+            const subtasksComplete = hasSubtasks && childCompleted === childTotal;
+
             return (
               <Text key={id}>
                 <Text color={isSelected ? theme.colors.primary : theme.colors.textDim}>{isSelected ? '>' : ' '} </Text>
                 <Text color={color}>{statusIcon} </Text>
                 <Text color={isSelected ? theme.colors.primary : theme.colors.textDim}>{child.id}: </Text>
                 <Text color={color} bold={isSelected}>{child.title}</Text>
-                {!isDone && <Text color={theme.colors.textDim}> ({child.status})</Text>}
+                {hasSubtasks && (
+                  <Text color={subtasksComplete ? theme.colors.success : theme.colors.textDim}> {childCompleted}/{childTotal}</Text>
+                )}
+                {!isDone && !hasSubtasks && <Text color={theme.colors.textDim}> ({child.status})</Text>}
               </Text>
             );
           })}
