@@ -49,10 +49,12 @@ bun run build:windows # x64 only
    - **Important**: Issues with `blockedBy` dependencies are automatically moved to "blocked" status even if marked as "open"
 
 2. **File Watching** (`src/bd/watcher.ts`)
-   - `BeadsWatcher` uses Node.js `fs.watch` to monitor `beads.db`
-   - Implements debouncing (100ms) to handle rapid database writes (SQLite WAL mode)
+   - `BeadsWatcher` polls WAL file size every 500ms (most reliable for SQLite WAL mode)
+   - Also monitors main DB mtime for checkpoint detection
+   - Implements 50ms debounce after change detection
    - Pub/sub pattern with multiple subscribers
    - Manual reload available via `reload()` method
+   - **Why polling?** macOS FSEvents is unreliable for SQLite WAL mode; mtime has 1-second resolution. WAL file SIZE changes with every write, even sub-second.
 
 3. **State Management** (`src/state/store.ts`)
    - Zustand store is the single source of truth for UI state
@@ -265,5 +267,5 @@ When adding new features to BD TUI:
 ### Performance Tips
 
 - **Filtering**: `getFilteredIssues()` runs on every render when filters are active. The `useMemo` in Board.tsx caches the filtered `byStatus` structure, but be mindful of expensive operations in filters.
-- **File watching**: The 100ms debounce in BeadsWatcher is tuned for SQLite WAL mode. Don't reduce it or you'll get duplicate updates.
+- **File watching**: BeadsWatcher polls WAL file size every 500ms with 50ms debounce. This is the most reliable approach for SQLite WAL mode on macOS.
 - **Pagination**: Each column independently paginates. `itemsPerPage` is calculated dynamically, so very tall terminals will show more issues per column automatically.
