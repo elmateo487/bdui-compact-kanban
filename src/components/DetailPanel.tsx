@@ -14,11 +14,16 @@ import { renderMarkdownLines } from './MarkdownText';
 interface DetailPanelProps {
   issue: Issue | null;
   maxHeight?: number;
+  width?: number;
 }
 
+// Default width if not provided
+const DEFAULT_PANEL_WIDTH = 50;
+
 // Description with markdown rendering
-function DescriptionBox({ description, theme, maxLines }: { description: string, theme: any, maxLines?: number }) {
-  const renderedLines = useMemo(() => renderMarkdownLines(description), [description]);
+function DescriptionBox({ description, theme, maxLines, contentWidth }: { description: string, theme: any, maxLines?: number, contentWidth: number }) {
+  // Render markdown with width-aware wrapping
+  const renderedLines = useMemo(() => renderMarkdownLines(description, contentWidth), [description, contentWidth]);
 
   // Check if we need to show "more lines" indicator
   const hasMore = maxLines && renderedLines.length > maxLines;
@@ -29,7 +34,7 @@ function DescriptionBox({ description, theme, maxLines }: { description: string,
   return (
     <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor={theme.colors.border}>
       {visibleLines.map((line, i) => (
-        <Text key={i} wrap="truncate"> {line || ''}</Text>
+        <Text key={i}> {line || ''}</Text>
       ))}
       {hasMore && contentLines && (
         <Text color={theme.colors.textDim}> ... ({renderedLines.length - contentLines} more lines)</Text>
@@ -60,9 +65,14 @@ function SubtasksSummary({ childIds, theme }: { childIds: string[], theme: any }
   );
 }
 
-export function DetailPanel({ issue, maxHeight }: DetailPanelProps) {
+export function DetailPanel({ issue, maxHeight, width }: DetailPanelProps) {
   const currentTheme = useBeadsStore(state => state.currentTheme);
   const theme = getTheme(currentTheme);
+
+  // Calculate panel and content widths
+  const panelWidth = width || DEFAULT_PANEL_WIDTH;
+  // Content width: panel width - outer border(2) - desc box border(2) - leading space(1) - right margin(1)
+  const contentWidth = panelWidth - 6;
 
   // Calculate available lines for description
   // Fixed overhead: main border(2) + header(2) + metadata(1) + desc marginTop(1) + desc border(2) + timestamp(1) + actions(1)
@@ -81,13 +91,12 @@ export function DetailPanel({ issue, maxHeight }: DetailPanelProps) {
         flexDirection="column"
         borderStyle="single"
         borderColor={theme.colors.border}
-        padding={1}
-        minWidth={30}
+        width={panelWidth}
       >
-        <Text color={theme.colors.textDim} italic>No issue selected</Text>
+        <Text color={theme.colors.textDim} italic> No issue selected</Text>
         <Box marginTop={1}>
           <Text color={theme.colors.textDim}>
-            Select an issue with arrow keys
+            {' '}Select an issue with arrow keys
           </Text>
         </Box>
       </Box>
@@ -104,8 +113,7 @@ export function DetailPanel({ issue, maxHeight }: DetailPanelProps) {
       flexDirection="column"
       borderStyle="single"
       borderColor={theme.colors.primary}
-      minWidth={24}
-      flexGrow={1}
+      width={panelWidth}
       height={maxHeight}
     >
       {/* Header - title truncates, ID on separate line */}
@@ -173,7 +181,7 @@ export function DetailPanel({ issue, maxHeight }: DetailPanelProps) {
 
       {/* Description - fills remaining space with markdown */}
       {issue.description && (
-        <DescriptionBox description={issue.description} theme={theme} maxLines={descriptionMaxLines} />
+        <DescriptionBox description={issue.description} theme={theme} maxLines={descriptionMaxLines} contentWidth={contentWidth} />
       )}
 
       {/* Compact timestamp */}

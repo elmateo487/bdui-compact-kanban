@@ -142,6 +142,10 @@ function KanbanView() {
   // Filter columns based on screen width
   const columnsToShow = statusConfig.slice(0, visibleColumns);
 
+  // Calculate available width for detail panel
+  // terminalWidth - (columns * columnWidth) - marginLeft(1)
+  const detailPanelAvailableWidth = terminalWidth - (visibleColumns * COLUMN_WIDTH) - 1;
+
   return (
     <Box flexDirection="column" width={terminalWidth} height={terminalHeight}>
       {/* Toast message */}
@@ -202,7 +206,7 @@ function KanbanView() {
         {/* Detail panel */}
         {shouldShowDetails && (
           <Box marginLeft={1} flexGrow={1} overflow="hidden">
-            <DetailPanel issue={selectedIssue} maxHeight={terminalHeight - 10} />
+            <DetailPanel issue={selectedIssue} maxHeight={terminalHeight - 10} width={detailPanelAvailableWidth} />
           </Box>
         )}
         {showDetails && !shouldShowDetails && (

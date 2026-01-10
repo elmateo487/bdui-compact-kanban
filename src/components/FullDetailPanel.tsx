@@ -46,11 +46,14 @@ export function FullDetailPanel({ issue }: FullDetailPanelProps) {
     }
   }
 
+  // Calculate content width: terminalWidth - outer border(4) - padding(2) - desc box border(2) - leading space(1)
+  const contentWidth = terminalWidth - 9;
+
   // Render markdown and get lines for pagination
   const descriptionLines = useMemo(() => {
     if (!issue.description) return [];
-    return renderMarkdownLines(issue.description);
-  }, [issue.description]);
+    return renderMarkdownLines(issue.description, contentWidth);
+  }, [issue.description, contentWidth]);
 
   // Calculate available height for description
   // Account for: border (4), padding (2), header (2), metadata (1), labels (1),
