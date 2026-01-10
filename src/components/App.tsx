@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput, useApp, useStdout } from 'ink';
 import { useBeadsStore } from '../state/store';
 import { Board } from './Board';
+import { FullDetailPanel } from './FullDetailPanel';
 import { BeadsWatcher } from '../bd/watcher';
 import { loadBeads, findBeadsDir } from '../bd/parser';
 import { getTheme } from '../themes/themes';
@@ -103,6 +104,18 @@ export function App() {
   const returnToPreviousView = useBeadsStore(state => state.returnToPreviousView);
   const toggleExportDialog = useBeadsStore(state => state.toggleExportDialog);
   const toggleThemeSelector = useBeadsStore(state => state.toggleThemeSelector);
+  const toggleBlockedColumn = useBeadsStore(state => state.toggleBlockedColumn);
+  const toggleFullDetail = useBeadsStore(state => state.toggleFullDetail);
+  const pushFullDetail = useBeadsStore(state => state.pushFullDetail);
+  const popFullDetail = useBeadsStore(state => state.popFullDetail);
+  const moveFullDetailUp = useBeadsStore(state => state.moveFullDetailUp);
+  const moveFullDetailDown = useBeadsStore(state => state.moveFullDetailDown);
+  const fullDetailStack = useBeadsStore(state => state.fullDetailStack);
+  const fullDetailSelectedSubtask = useBeadsStore(state => state.fullDetailSelectedSubtask);
+  const showFullDetail = useBeadsStore(state => state.showFullDetail);
+  const showDetails = useBeadsStore(state => state.showDetails);
+  const getSelectedIssue = useBeadsStore(state => state.getSelectedIssue);
+  const data = useBeadsStore(state => state.data);
   const clearFilters = useBeadsStore(state => state.clearFilters);
   const setViewMode = useBeadsStore(state => state.setViewMode);
   const viewMode = useBeadsStore(state => state.viewMode);
@@ -149,6 +162,36 @@ export function App() {
 
     // If modals are active, let those components handle input
     if (showSearch || showFilter || showExportDialog || showThemeSelector || showJumpToPage) {
+      return;
+    }
+
+    // Full detail view mode - handle separately
+    if (showFullDetail) {
+      if (key.escape) {
+        popFullDetail();
+        return;
+      }
+      if (key.return) {
+        // Enter on a subtask opens its detail view
+        const currentId = fullDetailStack[fullDetailStack.length - 1];
+        const currentIssue = data.byId.get(currentId);
+        if (currentIssue?.children && currentIssue.children.length > 0) {
+          const selectedChildId = currentIssue.children[fullDetailSelectedSubtask];
+          if (selectedChildId) {
+            pushFullDetail(selectedChildId);
+          }
+        }
+        return;
+      }
+      if (key.upArrow || input === 'k') {
+        moveFullDetailUp();
+        return;
+      }
+      if (key.downArrow || input === 'j') {
+        moveFullDetailDown();
+        return;
+      }
+      // Block other inputs in full detail mode
       return;
     }
 
@@ -227,8 +270,22 @@ export function App() {
       return;
     }
 
-    // Detail panel
-    if (key.return || input === ' ') {
+    // Toggle blocked column (kanban view only)
+    if (input === 'b' && viewMode === 'kanban') {
+      toggleBlockedColumn();
+      return;
+    }
+
+    // Detail panel - Enter opens full detail if panel is visible, otherwise toggles panel
+    if (key.return) {
+      if (showDetails) {
+        toggleFullDetail();
+      } else {
+        toggleDetails();
+      }
+    }
+    // Space always toggles detail panel
+    if (input === ' ') {
       toggleDetails();
     }
 
@@ -294,6 +351,15 @@ export function App() {
         </Text>
       </Box>
     );
+  }
+
+  // Show full detail panel if active
+  if (showFullDetail && fullDetailStack.length > 0) {
+    const currentId = fullDetailStack[fullDetailStack.length - 1];
+    const fullDetailIssue = data.byId.get(currentId);
+    if (fullDetailIssue) {
+      return <FullDetailPanel issue={fullDetailIssue} />;
+    }
   }
 
   return <Board />;

@@ -33,6 +33,7 @@ function KanbanView() {
   const showExportDialog = useBeadsStore(state => state.showExportDialog);
   const showThemeSelector = useBeadsStore(state => state.showThemeSelector);
   const showJumpToPage = useBeadsStore(state => state.showJumpToPage);
+  const showBlockedColumn = useBeadsStore(state => state.showBlockedColumn);
   const toggleExportDialog = useBeadsStore(state => state.toggleExportDialog);
   const toggleThemeSelector = useBeadsStore(state => state.toggleThemeSelector);
   const terminalWidth = useBeadsStore(state => state.terminalWidth);
@@ -70,6 +71,34 @@ function KanbanView() {
       }
     });
 
+    // Helper to count closed children for an issue
+    const getClosedChildCount = (issue: Issue): number => {
+      if (!issue.children || issue.children.length === 0) return 0;
+      return issue.children.filter(childId => {
+        const child = data.byId.get(childId);
+        return child && child.status === 'closed';
+      }).length;
+    };
+
+    // Sort each status column: priority ASC (P0 first), then closed task count DESC, then created time DESC
+    const sortIssues = (a: Issue, b: Issue): number => {
+      if (a.priority !== b.priority) {
+        return a.priority - b.priority;
+      }
+      const aClosedCount = getClosedChildCount(a);
+      const bClosedCount = getClosedChildCount(b);
+      if (aClosedCount !== bClosedCount) {
+        return bClosedCount - aClosedCount;
+      }
+      const aCreated = new Date(a.created_at).getTime();
+      const bCreated = new Date(b.created_at).getTime();
+      return bCreated - aCreated;
+    };
+
+    for (const status of Object.keys(byStatus)) {
+      byStatus[status].sort(sortIssues);
+    }
+
     return {
       ...data,
       byStatus,
@@ -83,11 +112,20 @@ function KanbanView() {
     };
   }, [data, searchQuery, filter, getFilteredIssues, filtersActive]);
 
+  // Build status config based on whether blocked column is shown
+  const baseStatusConfig = [
+    { key: 'open', title: 'Open' },
+    { key: 'in_progress', title: 'In Progress' },
+    ...(showBlockedColumn ? [{ key: 'blocked', title: 'Blocked' }] : []),
+  ] as const;
+
+  const maxColumns = baseStatusConfig.length;
+
   // Responsive layout calculations
   const COLUMN_WIDTH = LAYOUT.columnWidth;
   const DETAIL_PANEL_WIDTH = LAYOUT.detailPanelWidth;
-  const MIN_WIDTH_FOR_DETAIL = COLUMN_WIDTH * 4 + DETAIL_PANEL_WIDTH + 10;
-  const MIN_WIDTH_FOR_ALL_COLUMNS = COLUMN_WIDTH * 4 + 10;
+  const MIN_WIDTH_FOR_DETAIL = COLUMN_WIDTH * maxColumns + DETAIL_PANEL_WIDTH + 10;
+  const MIN_WIDTH_FOR_ALL_COLUMNS = COLUMN_WIDTH * maxColumns + 10;
 
   // Auto-hide detail panel on narrow screens
   const shouldShowDetails = showDetails && terminalWidth >= MIN_WIDTH_FOR_DETAIL;
@@ -97,14 +135,9 @@ function KanbanView() {
     ? 2
     : terminalWidth < COLUMN_WIDTH * 2
     ? 1
-    : 4;
+    : maxColumns;
 
-  const statusConfig = [
-    { key: 'open', title: 'Open' },
-    { key: 'in_progress', title: 'In Progress' },
-    { key: 'blocked', title: 'Blocked' },
-    { key: 'closed', title: 'Closed' },
-  ] as const;
+  const statusConfig = baseStatusConfig;
 
   // Filter columns based on screen width
   const columnsToShow = statusConfig.slice(0, visibleColumns);
@@ -127,10 +160,11 @@ function KanbanView() {
         <Box gap={2}>
           <Text color={theme.colors.textDim}>Total: <Text color={theme.colors.text}>{filteredData.stats.total}</Text></Text>
           <Text color={theme.colors.textDim}>Open: <Text color={theme.colors.statusOpen}>{filteredData.stats.open}</Text></Text>
-          <Text color={theme.colors.textDim}>Blocked: <Text color={theme.colors.statusBlocked}>{filteredData.stats.blocked}</Text></Text>
-          <Text color={theme.colors.textDim}>Closed: <Text color={theme.colors.statusClosed}>{filteredData.stats.closed}</Text></Text>
-          {visibleColumns < 4 && (
-            <Text color={theme.colors.warning}>[{4 - visibleColumns} hidden]</Text>
+          {showBlockedColumn && (
+            <Text color={theme.colors.textDim}>Blocked: <Text color={theme.colors.statusBlocked}>{filteredData.stats.blocked}</Text></Text>
+          )}
+          {visibleColumns < maxColumns && (
+            <Text color={theme.colors.warning}>[{maxColumns - visibleColumns} hidden]</Text>
           )}
         </Box>
       </Box>
@@ -167,12 +201,12 @@ function KanbanView() {
 
         {/* Detail panel */}
         {shouldShowDetails && (
-          <Box marginLeft={2} flexGrow={1} overflow="hidden">
+          <Box marginLeft={1} flexGrow={1} overflow="hidden">
             <DetailPanel issue={selectedIssue} maxHeight={terminalHeight - 10} />
           </Box>
         )}
         {showDetails && !shouldShowDetails && (
-          <Box marginLeft={2} padding={1} borderStyle="single" borderColor={theme.colors.warning}>
+          <Box marginLeft={1} padding={1} borderStyle="single" borderColor={theme.colors.warning}>
             <Text color={theme.colors.warning}>
               Terminal too narrow for detail panel (need {MIN_WIDTH_FOR_DETAIL} cols)
             </Text>

@@ -5,23 +5,23 @@ import { getTheme, type Theme } from '../themes/themes';
 
 // Layout constants
 export const LAYOUT = {
-  columnWidth: 37,
-  detailPanelWidth: 55,
+  columnWidth: 24,
+  detailPanelWidth: 28,
   uiOverhead: 17,
-  issueCardHeight: 8,
-  titleMaxLength: 32,
+  issueCardHeight: 5, // Compact cards: 2-line title + info line + border
+  titleMaxLength: 20,
   descriptionMaxLength: 200,
-  minTerminalWidth: 60,
+  minTerminalWidth: 50,
   minTerminalHeight: 20,
 } as const;
 
-// Priority labels (0-4, where 4 is highest)
+// Priority labels (0-4, where 0 is highest)
 export const PRIORITY_LABELS: Record<number, string> = {
-  0: 'Lowest',
-  1: 'Low',
+  0: 'Critical',
+  1: 'High',
   2: 'Medium',
-  3: 'High',
-  4: 'Critical',
+  3: 'Low',
+  4: 'Lowest',
 };
 
 // Status labels
@@ -49,14 +49,14 @@ export const VIEW_NAMES: Record<string, string> = {
   stats: 'Stats',
 };
 
-// Helper function to get priority color from theme
+// Helper function to get priority color from theme (P0=highest, P4=lowest)
 export function getPriorityColor(priority: number, theme: Theme): string {
   const colors: Record<number, string> = {
-    0: theme.colors.priorityLowest,
-    1: theme.colors.priorityLow,
+    0: theme.colors.priorityCritical,
+    1: theme.colors.priorityHigh,
     2: theme.colors.priorityMedium,
-    3: theme.colors.priorityHigh,
-    4: theme.colors.priorityCritical,
+    3: theme.colors.priorityLow,
+    4: theme.colors.priorityLowest,
   };
   return colors[priority] || theme.colors.textDim;
 }
@@ -110,12 +110,14 @@ export function hasActiveFilters(filter: {
   tags?: string[];
   status?: string;
   priority?: number;
+  type?: string;
 }, searchQuery: string): boolean {
   return !!(
     searchQuery.trim() ||
     filter.assignee ||
     filter.status ||
     filter.priority !== undefined ||
+    filter.type ||
     (filter.tags && filter.tags.length > 0)
   );
 }
@@ -126,12 +128,14 @@ export function countActiveFilters(filter: {
   tags?: string[];
   status?: string;
   priority?: number;
+  type?: string;
 }, searchQuery: string): number {
   let count = 0;
   if (searchQuery.trim()) count++;
   if (filter.assignee) count++;
   if (filter.status) count++;
   if (filter.priority !== undefined) count++;
+  if (filter.type) count++;
   if (filter.tags && filter.tags.length > 0) count++;
   return count;
 }

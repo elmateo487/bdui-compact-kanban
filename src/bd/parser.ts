@@ -20,7 +20,7 @@ export async function loadBeads(beadsPath: string = '.beads'): Promise<BeadsData
     // Open database - remove readonly flag as WAL mode needs write access
     const db = new Database(dbPath);
 
-    // Load all issues
+    // Load all issues (sorting applied after dependency analysis)
     const issues: Issue[] = db.query(`
       SELECT
         id,
@@ -34,7 +34,6 @@ export async function loadBeads(beadsPath: string = '.beads'): Promise<BeadsData
         updated_at,
         closed_at
       FROM issues
-      ORDER BY priority DESC, created_at DESC
     `).all() as Issue[];
 
     // Load labels for each issue
@@ -129,6 +128,38 @@ export async function loadBeads(beadsPath: string = '.beads'): Promise<BeadsData
     }
 
     db.close();
+
+    // Helper to count closed children for an issue
+    const getClosedChildCount = (issue: Issue): number => {
+      if (!issue.children || issue.children.length === 0) return 0;
+      return issue.children.filter(childId => {
+        const child = byId.get(childId);
+        return child && child.status === 'closed';
+      }).length;
+    };
+
+    // Sort each status column: priority ASC (P0 first), then closed task count DESC, then created time DESC
+    const sortIssues = (a: Issue, b: Issue): number => {
+      // Priority: lower number = higher priority (P0 before P4)
+      if (a.priority !== b.priority) {
+        return a.priority - b.priority;
+      }
+      // Closed task count: more closed = higher (for progress visibility)
+      const aClosedCount = getClosedChildCount(a);
+      const bClosedCount = getClosedChildCount(b);
+      if (aClosedCount !== bClosedCount) {
+        return bClosedCount - aClosedCount;
+      }
+      // Created time: newer first
+      const aCreated = new Date(a.created_at).getTime();
+      const bCreated = new Date(b.created_at).getTime();
+      return bCreated - aCreated;
+    };
+
+    // Apply sorting to each status column
+    for (const status of Object.keys(byStatus)) {
+      byStatus[status].sort(sortIssues);
+    }
 
     return { issues, byStatus, byId, stats };
   } catch (error) {

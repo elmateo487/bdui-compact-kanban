@@ -50,6 +50,13 @@ interface BeadsStore {
   showExportDialog: boolean;
   showThemeSelector: boolean;
   showJumpToPage: boolean;
+  showBlockedColumn: boolean;
+  showFullDetail: boolean;
+  fullDetailStack: string[]; // Stack of issue IDs for navigation
+  fullDetailSelectedSubtask: number; // Selected subtask index (-1 means scrolling description)
+  fullDetailDescriptionScroll: number; // Scroll offset for description
+  fullDetailDescriptionMaxScroll: number; // Max scroll value (set by component)
+  fullDetailDescriptionPageSize: number; // Visible lines per page (set by component)
   showConfirmDialog: boolean;
   confirmDialogData: {
     title: string;
@@ -72,6 +79,7 @@ interface BeadsStore {
     tags?: string[];
     status?: string;
     priority?: number;
+    type?: string;
   };
 
   // Actions
@@ -79,6 +87,7 @@ interface BeadsStore {
   setReloadCallback: (callback: (() => void) | null) => void;
   setFilter: (filter: BeadsStore['filter']) => void;
   getFilteredIssues: () => Issue[];
+  getFilteredByStatus: () => Record<StatusKey, Issue[]>;
   setTerminalSize: (width: number, height: number) => void;
 
   // Navigation actions
@@ -99,6 +108,16 @@ interface BeadsStore {
   toggleExportDialog: () => void;
   toggleThemeSelector: () => void;
   toggleJumpToPage: () => void;
+  toggleBlockedColumn: () => void;
+  toggleFullDetail: () => void;
+  pushFullDetail: (issueId: string) => void;
+  popFullDetail: () => void;
+  moveFullDetailUp: () => void;
+  moveFullDetailDown: () => void;
+  setFullDetailDescriptionMaxScroll: (max: number) => void;
+  setFullDetailDescriptionPageSize: (size: number) => void;
+  resetFullDetailScroll: () => void;
+  getFullDetailIssue: () => Issue | null;
   setTheme: (theme: string) => void;
   clearFilters: () => void;
   setViewMode: (mode: 'kanban' | 'tree' | 'graph' | 'stats' | 'create-issue' | 'edit-issue') => void;
@@ -171,6 +190,13 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   showExportDialog: false,
   showThemeSelector: false,
   showJumpToPage: false,
+  showBlockedColumn: false,
+  showFullDetail: false,
+  fullDetailStack: [],
+  fullDetailSelectedSubtask: -1, // -1 means description scrolling mode
+  fullDetailDescriptionScroll: 0,
+  fullDetailDescriptionMaxScroll: 0,
+  fullDetailDescriptionPageSize: 10,
   showConfirmDialog: false,
   confirmDialogData: null,
   currentTheme: 'default',
@@ -184,7 +210,7 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   undoHistory: [],
   maxUndoHistory: 10,
 
-  filter: {},
+  filter: { type: 'epic' },
 
   setTerminalSize: (width, height) => {
     const uiOverhead = LAYOUT.uiOverhead;
@@ -210,10 +236,19 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
       }
     }
 
-    // Validate and reset column states if needed
+    // First update data and reset full detail scroll state (forces UI redraw)
+    set({
+      data,
+      previousIssues: new Map(data.byId), // Clone for next comparison
+      fullDetailDescriptionScroll: 0,
+      fullDetailSelectedSubtask: -1,
+    });
+
+    // Now validate column states against filtered data
+    const filteredByStatus = get().getFilteredByStatus();
     const newColumnStates = { ...state.columnStates };
     for (const statusKey of STATUS_KEYS) {
-      const issuesInColumn = data.byStatus[statusKey]?.length || 0;
+      const issuesInColumn = filteredByStatus[statusKey]?.length || 0;
       const currentState = newColumnStates[statusKey];
 
       if (currentState.selectedIndex >= issuesInColumn) {
@@ -224,17 +259,33 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
       }
     }
 
-    // Update state
-    set({
-      data,
-      previousIssues: new Map(data.byId), // Clone for next comparison
-      columnStates: newColumnStates,
-    });
+    set({ columnStates: newColumnStates });
   },
 
   setReloadCallback: (callback) => set({ reloadCallback: callback }),
 
-  setFilter: (filter) => set({ filter }),
+  setFilter: (filter) => {
+    const state = get();
+    // First update filter
+    set({ filter });
+
+    // Then validate column states against new filtered data
+    const filteredByStatus = get().getFilteredByStatus();
+    const newColumnStates = { ...state.columnStates };
+    for (const statusKey of STATUS_KEYS) {
+      const issuesInColumn = filteredByStatus[statusKey]?.length || 0;
+      const currentState = newColumnStates[statusKey];
+
+      if (currentState.selectedIndex >= issuesInColumn) {
+        newColumnStates[statusKey] = {
+          selectedIndex: Math.max(0, issuesInColumn - 1),
+          scrollOffset: 0,
+        };
+      }
+    }
+
+    set({ columnStates: newColumnStates });
+  },
 
   getFilteredIssues: () => {
     const { data, filter, searchQuery } = get();
@@ -272,7 +323,72 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
       issues = issues.filter(issue => issue.priority === filter.priority);
     }
 
+    // Filter by issue type
+    if (filter.type) {
+      issues = issues.filter(issue => issue.issue_type === filter.type);
+    }
+
     return issues;
+  },
+
+  getFilteredByStatus: () => {
+    const { data, filter, searchQuery } = get();
+    const hasFilters = !!(
+      searchQuery.trim() ||
+      filter.assignee ||
+      filter.status ||
+      filter.priority !== undefined ||
+      filter.type ||
+      (filter.tags && filter.tags.length > 0)
+    );
+
+    if (!hasFilters) {
+      return data.byStatus;
+    }
+
+    const filteredIssues = get().getFilteredIssues();
+    const byStatus: Record<StatusKey, Issue[]> = {
+      'open': [],
+      'closed': [],
+      'in_progress': [],
+      'blocked': [],
+    };
+
+    filteredIssues.forEach(issue => {
+      if (byStatus[issue.status as StatusKey]) {
+        byStatus[issue.status as StatusKey].push(issue);
+      }
+    });
+
+    // Helper to count closed children for an issue
+    const getClosedChildCount = (issue: Issue): number => {
+      if (!issue.children || issue.children.length === 0) return 0;
+      return issue.children.filter(childId => {
+        const child = data.byId.get(childId);
+        return child && child.status === 'closed';
+      }).length;
+    };
+
+    // Sort each status column: priority ASC (P0 first), then closed task count DESC, then created time DESC
+    const sortIssues = (a: Issue, b: Issue): number => {
+      if (a.priority !== b.priority) {
+        return a.priority - b.priority;
+      }
+      const aClosedCount = getClosedChildCount(a);
+      const bClosedCount = getClosedChildCount(b);
+      if (aClosedCount !== bClosedCount) {
+        return bClosedCount - aClosedCount;
+      }
+      const aCreated = new Date(a.created_at).getTime();
+      const bCreated = new Date(b.created_at).getTime();
+      return bCreated - aCreated;
+    };
+
+    for (const status of Object.keys(byStatus)) {
+      byStatus[status as StatusKey].sort(sortIssues);
+    }
+
+    return byStatus;
   },
 
   getStatusKey: () => {
@@ -281,21 +397,23 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   },
 
   getSelectedIssue: () => {
-    const { data, selectedColumn, columnStates } = get();
+    const { selectedColumn, columnStates } = get();
     const statusKey = STATUS_KEYS[selectedColumn];
-    const issues = data.byStatus[statusKey] || [];
+    const filteredByStatus = get().getFilteredByStatus();
+    const issues = filteredByStatus[statusKey] || [];
     const selectedIndex = columnStates[statusKey].selectedIndex;
     return issues[selectedIndex] || null;
   },
 
   selectIssueById: (id: string) => {
-    const { data, columnStates, itemsPerPage } = get();
+    const { columnStates, itemsPerPage } = get();
     const searchId = id.toLowerCase();
+    const filteredByStatus = get().getFilteredByStatus();
 
-    // Search through all status columns
+    // Search through all status columns (filtered data)
     for (let colIndex = 0; colIndex < STATUS_KEYS.length; colIndex++) {
       const statusKey = STATUS_KEYS[colIndex];
-      const issues = data.byStatus[statusKey] || [];
+      const issues = filteredByStatus[statusKey] || [];
 
       const issueIndex = issues.findIndex(issue =>
         issue.id.toLowerCase() === searchId ||
@@ -322,9 +440,10 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   },
 
   getTotalPages: () => {
-    const { data, selectedColumn, itemsPerPage } = get();
+    const { selectedColumn, itemsPerPage } = get();
     const statusKey = STATUS_KEYS[selectedColumn];
-    const issues = data.byStatus[statusKey] || [];
+    const filteredByStatus = get().getFilteredByStatus();
+    const issues = filteredByStatus[statusKey] || [];
     return Math.ceil(issues.length / itemsPerPage) || 1;
   },
 
@@ -362,9 +481,10 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   },
 
   moveDown: () => {
-    const { data, selectedColumn, columnStates, itemsPerPage } = get();
+    const { selectedColumn, columnStates, itemsPerPage } = get();
     const statusKey = STATUS_KEYS[selectedColumn];
-    const issues = data.byStatus[statusKey] || [];
+    const filteredByStatus = get().getFilteredByStatus();
+    const issues = filteredByStatus[statusKey] || [];
     const currentState = columnStates[statusKey];
 
     if (currentState.selectedIndex < issues.length - 1) {
@@ -418,9 +538,10 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   },
 
   jumpToLast: () => {
-    const { data, selectedColumn, columnStates, itemsPerPage } = get();
+    const { selectedColumn, columnStates, itemsPerPage } = get();
     const statusKey = STATUS_KEYS[selectedColumn];
-    const issues = data.byStatus[statusKey] || [];
+    const filteredByStatus = get().getFilteredByStatus();
+    const issues = filteredByStatus[statusKey] || [];
     const lastIndex = Math.max(0, issues.length - 1);
     const newOffset = Math.max(0, lastIndex - itemsPerPage + 1);
 
@@ -436,9 +557,10 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   },
 
   jumpToPage: (page: number) => {
-    const { data, selectedColumn, columnStates, itemsPerPage } = get();
+    const { selectedColumn, columnStates, itemsPerPage } = get();
     const statusKey = STATUS_KEYS[selectedColumn];
-    const issues = data.byStatus[statusKey] || [];
+    const filteredByStatus = get().getFilteredByStatus();
+    const issues = filteredByStatus[statusKey] || [];
     const totalPages = Math.ceil(issues.length / itemsPerPage) || 1;
 
     // Clamp page to valid range
@@ -517,12 +639,123 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
     }));
   },
 
+  toggleBlockedColumn: () => {
+    set(state => ({ showBlockedColumn: !state.showBlockedColumn }));
+  },
+
+  toggleFullDetail: () => {
+    const state = get();
+    if (state.showFullDetail) {
+      // Close full detail
+      set({ showFullDetail: false, fullDetailStack: [], fullDetailSelectedSubtask: -1, fullDetailDescriptionScroll: 0 });
+    } else {
+      // Open full detail with current selected issue
+      const selectedIssue = state.getSelectedIssue();
+      if (selectedIssue) {
+        set({
+          showFullDetail: true,
+          fullDetailStack: [selectedIssue.id],
+          fullDetailSelectedSubtask: -1,
+          fullDetailDescriptionScroll: 0,
+        });
+      }
+    }
+  },
+
+  pushFullDetail: (issueId: string) => {
+    set(state => ({
+      fullDetailStack: [...state.fullDetailStack, issueId],
+      fullDetailSelectedSubtask: -1,
+      fullDetailDescriptionScroll: 0,
+    }));
+  },
+
+  popFullDetail: () => {
+    const state = get();
+    if (state.fullDetailStack.length > 1) {
+      // Pop one level
+      set({
+        fullDetailStack: state.fullDetailStack.slice(0, -1),
+        fullDetailSelectedSubtask: -1,
+        fullDetailDescriptionScroll: 0,
+      });
+    } else {
+      // Close full detail entirely
+      set({ showFullDetail: false, fullDetailStack: [], fullDetailSelectedSubtask: -1, fullDetailDescriptionScroll: 0 });
+    }
+  },
+
+  moveFullDetailUp: () => {
+    const state = get();
+    const pageSize = Math.max(1, state.fullDetailDescriptionPageSize - 1); // Overlap by 1 line for context
+
+    if (state.fullDetailSelectedSubtask >= 0) {
+      // In subtask selection mode - move up or switch to description scroll
+      if (state.fullDetailSelectedSubtask > 0) {
+        set({ fullDetailSelectedSubtask: state.fullDetailSelectedSubtask - 1 });
+      } else {
+        // At first subtask, switch back to description scrolling (jump to end)
+        set({ fullDetailSelectedSubtask: -1, fullDetailDescriptionScroll: state.fullDetailDescriptionMaxScroll });
+      }
+    } else {
+      // In description scroll mode - scroll up by page
+      if (state.fullDetailDescriptionScroll > 0) {
+        const newScroll = Math.max(0, state.fullDetailDescriptionScroll - pageSize);
+        set({ fullDetailDescriptionScroll: newScroll });
+      }
+    }
+  },
+
+  moveFullDetailDown: () => {
+    const state = get();
+    const issue = state.getFullDetailIssue();
+    const hasSubtasks = issue?.children && issue.children.length > 0;
+    const maxSubtaskIndex = hasSubtasks ? issue.children.length - 1 : -1;
+    const pageSize = Math.max(1, state.fullDetailDescriptionPageSize - 1); // Overlap by 1 line for context
+
+    if (state.fullDetailSelectedSubtask === -1) {
+      // In description scroll mode
+      if (state.fullDetailDescriptionScroll < state.fullDetailDescriptionMaxScroll) {
+        // Scroll down by page, capped at max
+        const newScroll = Math.min(state.fullDetailDescriptionMaxScroll, state.fullDetailDescriptionScroll + pageSize);
+        set({ fullDetailDescriptionScroll: newScroll });
+      } else if (hasSubtasks) {
+        // Description fully scrolled, switch to subtask selection
+        set({ fullDetailSelectedSubtask: 0 });
+      }
+    } else {
+      // In subtask selection mode - move down if possible
+      if (state.fullDetailSelectedSubtask < maxSubtaskIndex) {
+        set({ fullDetailSelectedSubtask: state.fullDetailSelectedSubtask + 1 });
+      }
+    }
+  },
+
+  setFullDetailDescriptionMaxScroll: (max: number) => {
+    set({ fullDetailDescriptionMaxScroll: max });
+  },
+
+  setFullDetailDescriptionPageSize: (size: number) => {
+    set({ fullDetailDescriptionPageSize: size });
+  },
+
+  resetFullDetailScroll: () => {
+    set({ fullDetailDescriptionScroll: 0, fullDetailSelectedSubtask: -1 });
+  },
+
+  getFullDetailIssue: () => {
+    const { fullDetailStack, data } = get();
+    if (fullDetailStack.length === 0) return null;
+    const currentId = fullDetailStack[fullDetailStack.length - 1];
+    return data.byId.get(currentId) || null;
+  },
+
   setTheme: (theme) => set({ currentTheme: theme }),
 
   clearFilters: () => {
     set({
       searchQuery: '',
-      filter: {},
+      filter: { type: 'epic' },  // Keep default type filter
       showSearch: false,
       showFilter: false,
     });
@@ -565,7 +798,28 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
     set({ viewMode: state.previousView });
   },
 
-  setSearchQuery: (query) => set({ searchQuery: query }),
+  setSearchQuery: (query) => {
+    const state = get();
+    // First update search query
+    set({ searchQuery: query });
+
+    // Then validate column states against new filtered data
+    const filteredByStatus = get().getFilteredByStatus();
+    const newColumnStates = { ...state.columnStates };
+    for (const statusKey of STATUS_KEYS) {
+      const issuesInColumn = filteredByStatus[statusKey]?.length || 0;
+      const currentState = newColumnStates[statusKey];
+
+      if (currentState.selectedIndex >= issuesInColumn) {
+        newColumnStates[statusKey] = {
+          selectedIndex: Math.max(0, issuesInColumn - 1),
+          scrollOffset: 0,
+        };
+      }
+    }
+
+    set({ columnStates: newColumnStates });
+  },
 
   // Toast actions
   showToast: (message, type) => {

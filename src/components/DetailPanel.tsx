@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Box, Text } from 'ink';
 import type { Issue } from '../types';
 import { useBeadsStore } from '../state/store';
@@ -8,23 +8,72 @@ import {
   getPriorityColor,
   getTypeColor,
   getStatusColor,
-  truncateText,
-  LAYOUT,
 } from '../utils/constants';
+import { renderMarkdownLines } from './MarkdownText';
 
 interface DetailPanelProps {
   issue: Issue | null;
   maxHeight?: number;
 }
 
+// Description with markdown rendering
+function DescriptionBox({ description, theme, maxLines }: { description: string, theme: any, maxLines?: number }) {
+  const renderedLines = useMemo(() => renderMarkdownLines(description), [description]);
+
+  // Check if we need to show "more lines" indicator
+  const hasMore = maxLines && renderedLines.length > maxLines;
+  // If hasMore, reserve 1 line for the indicator
+  const contentLines = hasMore && maxLines ? maxLines - 1 : maxLines;
+  const visibleLines = contentLines ? renderedLines.slice(0, contentLines) : renderedLines;
+
+  return (
+    <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor={theme.colors.border}>
+      {visibleLines.map((line, i) => (
+        <Text key={i} wrap="truncate"> {line || ''}</Text>
+      ))}
+      {hasMore && contentLines && (
+        <Text color={theme.colors.textDim}> ... ({renderedLines.length - contentLines} more lines)</Text>
+      )}
+    </Box>
+  );
+}
+
+// Subtasks summary component
+function SubtasksSummary({ childIds, theme }: { childIds: string[], theme: any }) {
+  const data = useBeadsStore(state => state.data);
+
+  let completed = 0;
+  for (const id of childIds) {
+    const child = data.byId.get(id);
+    if (child && child.status === 'closed') {
+      completed++;
+    }
+  }
+
+  const total = childIds.length;
+  const color = completed === total ? theme.colors.success : theme.colors.textDim;
+
+  return (
+    <Text color={color}>
+      Subtasks: {completed}/{total} complete
+    </Text>
+  );
+}
+
 export function DetailPanel({ issue, maxHeight }: DetailPanelProps) {
   const currentTheme = useBeadsStore(state => state.currentTheme);
   const theme = getTheme(currentTheme);
 
-  // Calculate description length based on available height
-  // Rough estimate: each line is ~50 chars, subtract ~20 lines for other content
-  const availableLines = maxHeight ? Math.max(2, maxHeight - 22) : 8;
-  const descriptionMaxLength = Math.min(LAYOUT.descriptionMaxLength, availableLines * 50);
+  // Calculate available lines for description
+  // Fixed overhead: main border(2) + header(2) + metadata(1) + desc marginTop(1) + desc border(2) + timestamp(1) + actions(1)
+  const fixedOverhead = 10;
+  const labelsLines = issue?.labels?.length ? 1 : 0;
+  const subtasksLines = issue?.children?.length ? 1 : 0;
+  const blockedByLines = issue?.blockedBy?.length ? 1 + issue.blockedBy.length : 0;
+  const blocksLines = issue?.blocks?.length ? 1 + issue.blocks.length : 0;
+  const parentLine = issue?.parent ? 1 : 0;
+  const dynamicOverhead = labelsLines + subtasksLines + blockedByLines + blocksLines + parentLine;
+  const descriptionMaxLines = maxHeight ? Math.max(3, maxHeight - fixedOverhead - dynamicOverhead) : 10;
 
   if (!issue) {
     return (
@@ -33,7 +82,7 @@ export function DetailPanel({ issue, maxHeight }: DetailPanelProps) {
         borderStyle="single"
         borderColor={theme.colors.border}
         padding={1}
-        minWidth={50}
+        minWidth={30}
       >
         <Text color={theme.colors.textDim} italic>No issue selected</Text>
         <Box marginTop={1}>
@@ -55,124 +104,85 @@ export function DetailPanel({ issue, maxHeight }: DetailPanelProps) {
       flexDirection="column"
       borderStyle="single"
       borderColor={theme.colors.primary}
-      padding={1}
-      minWidth={50}
+      minWidth={24}
       flexGrow={1}
       height={maxHeight}
-      overflow="hidden"
     >
-      {/* Header */}
-      <Box flexDirection="column" marginBottom={1}>
-        <Text bold color={theme.colors.primary}>{issue.title}</Text>
-        <Text color={theme.colors.textDim}>{issue.id}</Text>
+      {/* Header - title truncates, ID on separate line */}
+      <Box flexDirection="column">
+        <Text bold color={theme.colors.primary}> {issue.title}</Text>
+        <Text color={theme.colors.textDim} dimColor> {issue.id}</Text>
       </Box>
 
-      {/* Metadata */}
-      <Box flexDirection="column" gap={0} marginBottom={1}>
-        <Box gap={2}>
-          <Text color={theme.colors.textDim}>Type:</Text>
-          <Text color={typeColor}>
-            {issue.issue_type}
-          </Text>
-        </Box>
-
-        <Box gap={2}>
-          <Text color={theme.colors.textDim}>Priority:</Text>
-          <Text color={priorityColor}>
-            {priorityLabel} (P{issue.priority})
-          </Text>
-        </Box>
-
-        <Box gap={2}>
-          <Text color={theme.colors.textDim}>Status:</Text>
-          <Text color={statusColor}>
-            {issue.status.replace('_', ' ')}
-          </Text>
-        </Box>
-
+      {/* Compact metadata line */}
+      <Text>
+        <Text> </Text>
+        <Text color={typeColor}>{issue.issue_type}</Text>
+        <Text color={theme.colors.textDim}> | </Text>
+        <Text color={priorityColor}>P{issue.priority}</Text>
+        <Text color={theme.colors.textDim}> | </Text>
+        <Text color={statusColor}>{issue.status.replace('_', ' ')}</Text>
         {issue.assignee && (
-          <Box gap={2}>
-            <Text color={theme.colors.textDim}>Assignee:</Text>
+          <>
+            <Text color={theme.colors.textDim}> | </Text>
             <Text color={theme.colors.success}>@{issue.assignee}</Text>
-          </Box>
+          </>
         )}
-      </Box>
+      </Text>
 
-      {/* Labels */}
+      {/* Labels - compact, no gaps */}
       {issue.labels && issue.labels.length > 0 && (
-        <Box flexDirection="column" marginBottom={1}>
-          <Text color={theme.colors.textDim}>Labels:</Text>
-          <Box gap={1} flexWrap="wrap">
-            {issue.labels.map(label => (
-              <Text key={label} color={theme.colors.secondary}>#{label}</Text>
-            ))}
-          </Box>
-        </Box>
+        <Text>
+          <Text> </Text>
+          {issue.labels.map((label, i) => (
+            <Text key={label}>
+              <Text color={theme.colors.secondary}>#{label}</Text>
+              {i < issue.labels!.length - 1 && <Text color={theme.colors.textDim}> </Text>}
+            </Text>
+          ))}
+        </Text>
       )}
 
-      {/* Dependencies */}
+      {/* Subtasks summary */}
+      {issue.children && issue.children.length > 0 && (
+        <Text> <SubtasksSummary childIds={issue.children} theme={theme} /></Text>
+      )}
+
+      {/* Dependencies - only if present */}
       {issue.blockedBy && issue.blockedBy.length > 0 && (
-        <Box flexDirection="column" marginBottom={1}>
-          <Text color={theme.colors.statusBlocked} bold>[!] Blocked by:</Text>
+        <Box flexDirection="column">
+          <Text color={theme.colors.statusBlocked} bold> [!] Blocked by:</Text>
           {issue.blockedBy.map(id => (
-            <Text key={id} color={theme.colors.textDim}>  - {id}</Text>
+            <Text key={id} color={theme.colors.textDim}>   - {id}</Text>
           ))}
         </Box>
       )}
 
       {issue.blocks && issue.blocks.length > 0 && (
-        <Box flexDirection="column" marginBottom={1}>
-          <Text color={theme.colors.textDim}>Blocks:</Text>
+        <Box flexDirection="column">
+          <Text color={theme.colors.textDim}> Blocks:</Text>
           {issue.blocks.map(id => (
-            <Text key={id} color={theme.colors.textDim}>  - {id}</Text>
+            <Text key={id} color={theme.colors.textDim}>   - {id}</Text>
           ))}
         </Box>
       )}
 
       {issue.parent && (
-        <Box flexDirection="column" marginBottom={1}>
-          <Text color={theme.colors.textDim}>Parent:</Text>
-          <Text color={theme.colors.textDim}>  - {issue.parent}</Text>
-        </Box>
+        <Text color={theme.colors.textDim}> Parent: {issue.parent}</Text>
       )}
 
-      {issue.children && issue.children.length > 0 && (
-        <Box flexDirection="column" marginBottom={1}>
-          <Text color={theme.colors.textDim}>Subtasks ({issue.children.length}):</Text>
-          {issue.children.slice(0, 5).map(id => (
-            <Text key={id} color={theme.colors.textDim}>  - {id}</Text>
-          ))}
-          {issue.children.length > 5 && (
-            <Text color={theme.colors.textDim}>  ... and {issue.children.length - 5} more</Text>
-          )}
-        </Box>
-      )}
-
-      {/* Description */}
+      {/* Description - fills remaining space with markdown */}
       {issue.description && (
-        <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor={theme.colors.border} padding={1}>
-          <Text bold color={theme.colors.textDim}>Description:</Text>
-          <Text color={theme.colors.text}>
-            {truncateText(issue.description, descriptionMaxLength, true)}
-          </Text>
-        </Box>
+        <DescriptionBox description={issue.description} theme={theme} maxLines={descriptionMaxLines} />
       )}
 
-      {/* Timestamps */}
-      <Box flexDirection="column" marginTop={1} paddingTop={1} borderColor={theme.colors.border} borderTop>
-        <Text color={theme.colors.textDim}>Created: {new Date(issue.created_at).toLocaleString()}</Text>
-        <Text color={theme.colors.textDim}>Updated: {new Date(issue.updated_at).toLocaleString()}</Text>
-        {issue.closed_at && (
-          <Text color={theme.colors.textDim}>Closed: {new Date(issue.closed_at).toLocaleString()}</Text>
-        )}
-      </Box>
+      {/* Compact timestamp */}
+      <Text color={theme.colors.textDim} dimColor>
+        {' '}Updated: {new Date(issue.updated_at).toLocaleString()}
+      </Text>
 
       {/* Actions hint */}
-      <Box marginTop={1}>
-        <Text color={theme.colors.textDim}>
-          e edit | x export | ESC close
-        </Text>
-      </Box>
+      <Text color={theme.colors.textDim} dimColor> Enter: full | e: edit | x: export</Text>
     </Box>
   );
 }

@@ -57,6 +57,7 @@ export function HelpOverlay() {
           <Text>  <Text color={theme.colors.primary}>e</Text>              Edit selected issue</Text>
           <Text>  <Text color={theme.colors.primary}>x</Text>              Export/copy selected issue</Text>
           <Text>  <Text color={theme.colors.primary}>Enter / Space</Text>  Toggle detail panel</Text>
+          <Text>  <Text color={theme.colors.primary}>b</Text>              Toggle Blocked column (Kanban)</Text>
           <Text>  <Text color={theme.colors.primary}>r</Text>              Refresh data</Text>
           <Text>  <Text color={theme.colors.primary}>u</Text>              Undo (view history)</Text>
         </Box>

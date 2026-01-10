@@ -6,8 +6,6 @@ import { getTheme } from '../themes/themes';
 import {
   PRIORITY_LABELS,
   getPriorityColor,
-  getTypeColor,
-  truncateText,
   LAYOUT,
 } from '../utils/constants';
 
@@ -21,63 +19,65 @@ export function IssueCard({ issue, isSelected = false }: IssueCardProps) {
   const theme = getTheme(currentTheme);
 
   const priorityColor = getPriorityColor(issue.priority, theme);
-  const typeColor = getTypeColor(issue.issue_type, theme);
-  const priorityLabel = PRIORITY_LABELS[issue.priority] || 'Unknown';
+
+  // Determine authority status from labels
+  const getAuthorityColor = (): string => {
+    if (issue.labels?.includes('authority:granted')) return theme.colors.success;
+    if (issue.labels?.includes('authority:pending')) return 'yellow';
+    if (issue.labels?.includes('authority:suspended')) return theme.colors.error;
+    return theme.colors.textDim;
+  };
+  const authorityColor = getAuthorityColor();
+
+  // Calculate subtask completion
+  const data = useBeadsStore(state => state.data);
+  let completedTasks = 0;
+  const totalTasks = issue.children?.length || 0;
+  if (issue.children) {
+    for (const id of issue.children) {
+      const child = data.byId.get(id);
+      if (child && child.status === 'closed') completedTasks++;
+    }
+  }
 
   return (
     <Box
       borderStyle="round"
       borderColor={isSelected ? theme.colors.primary : theme.colors.border}
-      paddingX={1}
+      paddingX={0}
       flexDirection="column"
-      width={LAYOUT.columnWidth - 2}
+      width={LAYOUT.columnWidth}
     >
-      <Box flexDirection="column">
-        <Text bold color={isSelected ? theme.colors.primary : theme.colors.text}>
-          {truncateText(issue.title, LAYOUT.titleMaxLength)}
+      {/* Title - up to 2 lines */}
+      <Text bold color={isSelected ? theme.colors.primary : theme.colors.text} wrap="truncate">
+        {issue.title.slice(0, LAYOUT.columnWidth - 2)}
+      </Text>
+      {issue.title.length > LAYOUT.columnWidth - 2 && (
+        <Text bold color={isSelected ? theme.colors.primary : theme.colors.text} wrap="truncate">
+          {issue.title.slice(LAYOUT.columnWidth - 2, (LAYOUT.columnWidth - 2) * 2)}
         </Text>
-        <Text color={theme.colors.textDim}>{issue.id}</Text>
-      </Box>
+      )}
 
-      <Box gap={1}>
-        <Text color={typeColor}>{issue.issue_type}</Text>
-        <Text color={theme.colors.textDim}>|</Text>
+      {/* Compact info line: id | priority | tasks */}
+      <Text wrap="truncate">
+        <Text color={authorityColor}>{issue.id}</Text>
+        <Text color={theme.colors.textDim}> </Text>
         <Text color={priorityColor}>P{issue.priority}</Text>
-        <Text color={theme.colors.textDim}>({priorityLabel.toLowerCase()})</Text>
-      </Box>
-
-      {issue.assignee && (
-        <Box gap={1}>
-          <Text color={theme.colors.textDim}>@</Text>
-          <Text color={theme.colors.success}>{issue.assignee}</Text>
-        </Box>
-      )}
-
-      {issue.labels && issue.labels.length > 0 && (
-        <Box gap={1}>
-          <Text color={theme.colors.textDim}>#</Text>
-          <Text color={theme.colors.secondary}>{issue.labels.slice(0, 2).join(', ')}</Text>
-          {issue.labels.length > 2 && (
-            <Text color={theme.colors.textDim}>+{issue.labels.length - 2}</Text>
-          )}
-        </Box>
-      )}
-
-      {issue.blockedBy && issue.blockedBy.length > 0 && (
-        <Box>
-          <Text color={theme.colors.statusBlocked}>
-            [!] Blocked by {issue.blockedBy.length}
-          </Text>
-        </Box>
-      )}
-
-      {issue.children && issue.children.length > 0 && (
-        <Box>
-          <Text color={theme.colors.textDim}>
-            {issue.children.length} subtask{issue.children.length > 1 ? 's' : ''}
-          </Text>
-        </Box>
-      )}
+        {totalTasks > 0 && (
+          <>
+            <Text color={theme.colors.textDim}> </Text>
+            <Text color={completedTasks === totalTasks ? theme.colors.success : theme.colors.textDim}>
+              {completedTasks}/{totalTasks}
+            </Text>
+          </>
+        )}
+        {issue.blockedBy && issue.blockedBy.length > 0 && (
+          <>
+            <Text color={theme.colors.textDim}> </Text>
+            <Text color={theme.colors.statusBlocked}>[!]</Text>
+          </>
+        )}
+      </Text>
     </Box>
   );
 }

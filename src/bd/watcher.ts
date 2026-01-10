@@ -1,4 +1,4 @@
-import { watch, type FSWatcher } from 'fs';
+import { watch, watchFile, unwatchFile, type FSWatcher } from 'fs';
 import { join } from 'path';
 import type { BeadsData } from '../types';
 import { loadBeads } from './parser';
@@ -13,24 +13,28 @@ export class BeadsWatcher {
   private callbacks: Set<UpdateCallback> = new Set();
   private beadsPath: string;
   private debounceTimeout: Timer | null = null;
+  private lastTouchedPath: string;
 
   constructor(beadsPath: string) {
     this.beadsPath = beadsPath;
+    this.lastTouchedPath = join(beadsPath, 'last-touched');
   }
 
   /**
-   * Start watching the beads.db file
+   * Start watching for beads changes using polling on last-touched file
    */
   start() {
     if (this.watcher) return;
 
-    const dbPath = join(this.beadsPath, 'beads.db');
-
-    this.watcher = watch(
-      dbPath,
-      { recursive: false },
-      (eventType, filename) => {
-        this.handleChange();
+    // Use watchFile (polling) on the last-touched file - more reliable on macOS
+    // Beads updates this file on every database change
+    watchFile(
+      this.lastTouchedPath,
+      { interval: 500 }, // Poll every 500ms
+      (curr, prev) => {
+        if (curr.mtime > prev.mtime) {
+          this.handleChange();
+        }
       }
     );
   }
@@ -39,10 +43,7 @@ export class BeadsWatcher {
    * Stop watching
    */
   stop() {
-    if (this.watcher) {
-      this.watcher.close();
-      this.watcher = null;
-    }
+    unwatchFile(this.lastTouchedPath);
 
     if (this.debounceTimeout) {
       clearTimeout(this.debounceTimeout);

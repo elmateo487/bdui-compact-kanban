@@ -40,7 +40,7 @@ export function StatusColumn({
   const statusColor = getStatusColor(statusKey, theme);
 
   return (
-    <Box flexDirection="column" paddingX={1} minWidth={LAYOUT.columnWidth}>
+    <Box flexDirection="column" paddingX={0} width={LAYOUT.columnWidth}>
       {/* Header */}
       <Box
         borderStyle={isActive ? 'double' : 'single'}
@@ -108,32 +108,6 @@ export function StatusColumn({
         </Box>
       )}
 
-      {/* Pagination info - always visible when there are multiple pages */}
-      {totalPages > 1 && (
-        <Box justifyContent="center" paddingTop={1}>
-          <Box
-            borderStyle="single"
-            borderColor={isActive ? theme.colors.primary : theme.colors.border}
-            paddingX={1}
-          >
-            <Text color={isActive ? theme.colors.primary : theme.colors.textDim}>
-              Page {currentPage}/{totalPages}
-            </Text>
-            {isActive && (
-              <Text color={theme.colors.textDim}> (g to jump)</Text>
-            )}
-          </Box>
-        </Box>
-      )}
-
-      {/* Single page indicator */}
-      {totalPages === 1 && totalIssues > 0 && (
-        <Box justifyContent="center" paddingTop={1}>
-          <Text color={theme.colors.textDim}>
-            {totalIssues} item{totalIssues !== 1 ? 's' : ''}
-          </Text>
-        </Box>
-      )}
     </Box>
   );
 }

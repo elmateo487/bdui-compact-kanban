@@ -11,6 +11,7 @@ interface FooterProps {
 export function Footer({ currentView }: FooterProps) {
   const currentTheme = useBeadsStore(state => state.currentTheme);
   const notificationsEnabled = useBeadsStore(state => state.notificationsEnabled);
+  const showBlockedColumn = useBeadsStore(state => state.showBlockedColumn);
   const theme = getTheme(currentTheme);
 
   const views = [
@@ -34,6 +35,11 @@ export function Footer({ currentView }: FooterProps) {
               {currentView === v.key ? `[${v.num}]` : v.num} {v.name}
             </Text>
           ))}
+          {currentView === 'kanban' && (
+            <Text color={theme.colors.textDim}>
+              | b:blocked {showBlockedColumn ? 'ON' : 'off'}
+            </Text>
+          )}
           <Text color={theme.colors.textDim}>| ? help | q quit</Text>
         </Box>
         <Text color={notificationsEnabled ? theme.colors.success : theme.colors.textDim}>
