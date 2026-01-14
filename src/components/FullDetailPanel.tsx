@@ -9,6 +9,7 @@ import {
   getTypeColor,
   getStatusColor,
 } from '../utils/constants';
+import { naturalSortIds } from '../utils/sorting';
 import { renderMarkdownLines } from './MarkdownText';
 import { Toast } from './Toast';
 
@@ -35,6 +36,12 @@ export function FullDetailPanel({ issue }: FullDetailPanelProps) {
   const priorityColor = getPriorityColor(issue.priority, theme);
   const typeColor = getTypeColor(issue.issue_type, theme);
   const statusColor = getStatusColor(issue.status, theme);
+
+  // Sort children by natural numeric order (e.g., .1, .2, ... .9, .10)
+  const sortedChildren = useMemo(() => {
+    if (!issue.children) return [];
+    return [...issue.children].sort(naturalSortIds);
+  }, [issue.children]);
 
   // Calculate subtasks summary
   let completedSubtasks = 0;
@@ -263,7 +270,7 @@ export function FullDetailPanel({ issue }: FullDetailPanelProps) {
         )}
 
         {/* Subtasks list - navigable with scrolling */}
-        {issue.children && issue.children.length > 0 && (() => {
+        {sortedChildren.length > 0 && (() => {
         // Calculate visible window of subtasks centered around selected item
         const effectiveMaxVisible = maxVisibleSubtasks - (totalSubtasks > maxVisibleSubtasks ? 2 : 0); // Account for scroll indicators
         let subtaskScrollOffset = 0;
@@ -276,7 +283,7 @@ export function FullDetailPanel({ issue }: FullDetailPanelProps) {
             totalSubtasks - effectiveMaxVisible
           ));
         }
-        const visibleChildren = issue.children.slice(subtaskScrollOffset, subtaskScrollOffset + effectiveMaxVisible);
+        const visibleChildren = sortedChildren.slice(subtaskScrollOffset, subtaskScrollOffset + effectiveMaxVisible);
         const canScrollSubtasksUp = subtaskScrollOffset > 0;
         const canScrollSubtasksDown = subtaskScrollOffset + effectiveMaxVisible < totalSubtasks;
 
@@ -292,7 +299,7 @@ export function FullDetailPanel({ issue }: FullDetailPanelProps) {
               <Text color={theme.colors.primary}> ▲ {subtaskScrollOffset} more above</Text>
             )}
             {visibleChildren.map((id) => {
-              const index = issue.children!.indexOf(id);
+              const index = sortedChildren.indexOf(id);
               const child = data.byId.get(id);
               if (!child) return <Text key={id} color={theme.colors.textDim}>  ? {id}</Text>;
               const isDone = child.status === 'closed';
@@ -326,6 +333,10 @@ export function FullDetailPanel({ issue }: FullDetailPanelProps) {
               }
               const hasSubtasks = childTotal > 0;
 
+              // For tickets (epic children), always show status; for ACs, only when not done and no subtasks
+              const showStatus = isEpic ? !isDone : (!isDone && !hasSubtasks);
+              const childStatusColor = getStatusColor(child.status, theme);
+
               return (
                 <Text key={id}>
                   <Text color={isSelected ? theme.colors.primary : theme.colors.textDim}>{isSelected ? '>' : ' '} </Text>
@@ -335,7 +346,7 @@ export function FullDetailPanel({ issue }: FullDetailPanelProps) {
                   {hasSubtasks && (
                     <Text color={childCompleted > 0 ? theme.colors.success : theme.colors.textDim}> {childCompleted}/{childTotal}</Text>
                   )}
-                  {!isDone && !hasSubtasks && <Text color={theme.colors.textDim}> ({child.status})</Text>}
+                  {showStatus && <Text color={childStatusColor}> ({child.status.replace('_', ' ')})</Text>}
                 </Text>
               );
             })}
