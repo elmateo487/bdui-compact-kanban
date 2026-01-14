@@ -382,8 +382,15 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
     };
 
     filteredIssues.forEach(issue => {
-      if (byStatus[issue.status as StatusKey]) {
-        byStatus[issue.status as StatusKey].push(issue);
+      // Compute actual status - issues with open blockers are "blocked"
+      const hasOpenBlockers = issue.blockedBy && issue.blockedBy.some(blockerId => {
+        const blocker = data.byId.get(blockerId);
+        return blocker && blocker.status !== 'closed';
+      });
+      const actualStatus = (hasOpenBlockers && issue.status === 'open' ? 'blocked' : issue.status) as StatusKey;
+
+      if (byStatus[actualStatus]) {
+        byStatus[actualStatus].push(issue);
       }
     });
 

@@ -71,8 +71,15 @@ function KanbanView() {
     };
 
     filteredIssues.forEach(issue => {
-      if (byStatus[issue.status]) {
-        byStatus[issue.status].push(issue);
+      // Compute actual status - issues with open blockers are "blocked"
+      const hasOpenBlockers = issue.blockedBy && issue.blockedBy.some(blockerId => {
+        const blocker = data.byId.get(blockerId);
+        return blocker && blocker.status !== 'closed';
+      });
+      const actualStatus = hasOpenBlockers && issue.status === 'open' ? 'blocked' : issue.status;
+
+      if (byStatus[actualStatus]) {
+        byStatus[actualStatus].push(issue);
       }
     });
 
