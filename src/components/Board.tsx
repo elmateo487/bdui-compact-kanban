@@ -7,17 +7,15 @@ import { StackedStatusColumns } from './StackedStatusColumns';
 import { DetailPanel } from './DetailPanel';
 import { HelpOverlay } from './HelpOverlay';
 import { SearchInput } from './SearchInput';
-import { FilterPanel } from './FilterPanel';
 import { CreateIssueForm } from './CreateIssueForm';
 import { EditIssueForm } from './EditIssueForm';
 import { ExportDialog } from './ExportDialog';
 import { ThemeSelector } from './ThemeSelector';
 import { TotalListView } from './TotalListView';
 import { Toast } from './Toast';
-import { FiltersBanner } from './FiltersBanner';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CommandBar } from './CommandBar';
-import { LAYOUT, hasActiveFilters } from '../utils/constants';
+import { LAYOUT } from '../utils/constants';
 import type { Issue } from '../types';
 
 function KanbanView() {
@@ -35,7 +33,6 @@ function KanbanView() {
   const itemsPerPage = useBeadsStore(state => state.itemsPerPage);
   const showDetails = useBeadsStore(state => state.showDetails);
   const showSearch = useBeadsStore(state => state.showSearch);
-  const showFilter = useBeadsStore(state => state.showFilter);
   const showExportDialog = useBeadsStore(state => state.showExportDialog);
   const showThemeSelector = useBeadsStore(state => state.showThemeSelector);
   const showJumpToPage = useBeadsStore(state => state.showJumpToPage);
@@ -55,11 +52,9 @@ function KanbanView() {
   const theme = getTheme(currentTheme);
 
   const selectedIssue = getSelectedIssue();
-  const filtersActive = hasActiveFilters(filter, searchQuery);
 
-  // Apply filtering - rebuild byStatus from filtered issues
-  // Note: parentsOnly is not in hasActiveFilters (so it doesn't show in banner) but we still need to apply it
-  const needsFiltering = filtersActive || filter.parentsOnly;
+  // Apply filtering - rebuild byStatus from filtered issues when parentsOnly is active
+  const needsFiltering = filter.parentsOnly;
   const filteredData = useMemo(() => {
     if (!needsFiltering) {
       return data;
@@ -148,9 +143,8 @@ function KanbanView() {
   // Calculate available width for detail panel
   const detailPanelAvailableWidth = terminalWidth - (visualColumns * COLUMN_WIDTH) - 1;
 
-  // Calculate height for stacked columns (total height minus header/footer overhead)
-  // Status bar: 1 line, Filter banner: 3 lines if active
-  const stackedColumnHeight = terminalHeight - (filtersActive ? 4 : 1);
+  // Calculate height for stacked columns (total height minus status bar)
+  const stackedColumnHeight = terminalHeight - 1;
 
   return (
     <Box flexDirection="column" width={terminalWidth} height={terminalHeight}>
@@ -169,14 +163,8 @@ function KanbanView() {
         <Text color={theme.colors.textDim}>{terminalWidth}x{terminalHeight}</Text>
       </Box>
 
-      {/* Filters banner */}
-      <FiltersBanner />
-
       {/* Search Input */}
       {showSearch && <SearchInput />}
-
-      {/* Filter Panel */}
-      {showFilter && <FilterPanel />}
 
       {/* Main content */}
       <Box flexGrow={1} overflow="hidden">
@@ -232,7 +220,7 @@ function KanbanView() {
           <Box marginLeft={1} flexGrow={1} overflow="hidden">
             <DetailPanel
               issue={selectedIssue}
-              maxHeight={terminalHeight - (filtersActive ? 4 : 1)}
+              maxHeight={terminalHeight - 1}
               width={detailPanelAvailableWidth}
               collapsed={!showDetails}
             />
