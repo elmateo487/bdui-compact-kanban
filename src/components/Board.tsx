@@ -233,13 +233,6 @@ function KanbanView() {
             />
           </Box>
         )}
-        {showDetails && terminalWidth < MIN_WIDTH_FOR_DETAIL && (
-          <Box marginLeft={1} padding={1} borderStyle="single" borderColor={theme.colors.warning}>
-            <Text color={theme.colors.warning}>
-              Terminal too narrow for detail panel (need {MIN_WIDTH_FOR_DETAIL} cols)
-            </Text>
-          </Box>
-        )}
       </Box>
 
       {/* Command Bar (vim-style) */}
