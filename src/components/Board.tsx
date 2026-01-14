@@ -158,7 +158,6 @@ function KanbanView() {
       <Box justifyContent="space-between">
         <Box gap={2}>
           <Text color={theme.colors.textDim}>Total: <Text color={theme.colors.text}>{stats.total}</Text></Text>
-          <Text color={theme.colors.textDim}>Open: <Text color={theme.colors.statusOpen}>{stats.open}</Text></Text>
           <Text color={theme.colors.textDim}>Blocked: <Text color={theme.colors.statusBlocked}>{stats.blocked}</Text></Text>
           {!showBothVisualColumns && (
             <Text color={theme.colors.warning}>[narrow: WIP/Blocked hidden]</Text>
