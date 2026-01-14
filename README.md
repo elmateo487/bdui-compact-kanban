@@ -30,67 +30,23 @@ This TUI is designed to work with [AgenticSystem](https://github.com/elmateo487/
 
 ## Issue Hierarchy
 
-BD TUI Compact is designed around a **three-level hierarchy** for organizing work:
+BD TUI Compact visualizes a **three-level parent-child hierarchy**:
 
-```
-Epic (large initiative)
-├── Ticket (discrete work item)
-│   ├── Acceptance Criteria (specific requirement)
-│   ├── Acceptance Criteria
-│   └── Acceptance Criteria
-├── Ticket
-│   └── Acceptance Criteria
-└── Ticket
-```
+| Level | Description |
+|-------|-------------|
+| **Epic** | Large initiative spanning multiple sessions |
+| **Ticket** | Discrete work item, child of an Epic |
+| **Acceptance Criteria** | Testable requirement, child of a Ticket |
 
-### Setting Up the Hierarchy
-
-Use `bd` CLI commands with labels to establish the hierarchy:
-
-```bash
-# Create an Epic (use --type epic and label)
-bd create --title "User Authentication System" --type epic --label epic --priority 1
-
-# Create Tickets under the Epic (use --type task with ticket label)
-bd create --title "Implement login flow" --type task --label ticket --parent bd-xxx --priority 2
-bd create --title "Add password reset" --type task --label ticket --parent bd-xxx --priority 2
-
-# Create Acceptance Criteria under a Ticket (use --type task with ac label)
-bd create --title "Login form validates email format" --type task --label ac --parent bd-yyy --priority 3
-bd create --title "Error message shown on invalid credentials" --type task --label ac --parent bd-yyy --priority 3
-bd create --title "Session persists across browser refresh" --type task --label ac --parent bd-yyy --priority 3
-```
-
-### Label Reference
-
-| Hierarchy Level | Label | bd Type | Purpose | Has Parent? | Has Children? |
-|-----------------|-------|---------|---------|-------------|---------------|
-| **Epic** | `epic` | `epic` | Large feature or initiative | No | Tickets |
-| **Ticket** | `ticket` | `task` | Discrete, shippable work item | Epic | ACs |
-| **AC** | `ac` | `task` | Testable acceptance criteria | Ticket | No |
+Relationships are established using the `--parent` flag when creating issues. See [AgenticSystem v1.3](https://github.com/elmateo487/AgenticSystem) for full workflow details and label conventions.
 
 ### How BD TUI Displays the Hierarchy
 
-- **Kanban View**: Shows completion badges (e.g., "2/5" meaning 2 of 5 children completed)
-- **Detail Panel**: Lists children with checkboxes showing open/closed status
-- **Full Detail View**: Navigate children with ↑/↓, press Enter to drill down
-- **Parents Filter** (`p`): Toggle to hide ACs and show only Epics/Tickets
-
-### Hierarchy Validation
-
-The **Dashboard view** (`Shift+T`) helps maintain data quality by flagging:
-- ⚠️ Orphaned ACs (acceptance criteria without a parent ticket)
-- ⚠️ Missing parent references (broken parent links)
-- ⚠️ Issues without type labels (unlabeled issues)
-
-### Best Practices
-
-1. **Epics** should represent features that take multiple sessions to complete
-2. **Tickets** should be completable in a single focused session
-3. **ACs** should be specific, testable criteria (think "definition of done")
-4. Use the `--parent` flag when creating to establish relationships
-5. Close ACs as you complete them - the parent ticket shows progress automatically
-6. Use priority P0-P2 for epics/tickets, P3-P4 for individual ACs
+- **Kanban View**: Shows completion badges (e.g., "2/5" children completed)
+- **Detail Panel**: Lists children with status checkboxes
+- **Full Detail View**: Navigate children with arrow keys, Enter to drill down
+- **Parents Filter** (`p`): Toggle to show only Epics/Tickets (hide ACs)
+- **Dashboard** (`Shift+T`): Flags orphaned ACs and missing parent references
 
 ## ✨ Features
 
