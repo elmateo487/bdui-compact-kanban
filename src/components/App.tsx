@@ -8,6 +8,7 @@ import { loadBeads, findBeadsDir } from '../bd/parser';
 import { getTheme } from '../themes/themes';
 import { copyToClipboard } from '../utils/export';
 import { LAYOUT } from '../utils/constants';
+import { naturalSortIds } from '../utils/sorting';
 
 export function App() {
   const { exit } = useApp();
@@ -211,7 +212,9 @@ export function App() {
         } else if (fullDetailSection === 'blocks' && currentIssue.blocks) {
           targetId = currentIssue.blocks[fullDetailSectionIndex];
         } else if (fullDetailSection === 'subtasks' && currentIssue.children) {
-          targetId = currentIssue.children[fullDetailSectionIndex];
+          // Use sorted children to match display order in FullDetailPanel
+          const sortedChildren = [...currentIssue.children].sort(naturalSortIds);
+          targetId = sortedChildren[fullDetailSectionIndex];
         }
 
         if (targetId) {
