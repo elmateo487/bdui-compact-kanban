@@ -120,8 +120,8 @@ The **Dashboard view** (`Shift+T`) helps maintain data quality by flagging:
 
 ```bash
 # Clone this fork
-git clone https://github.com/elmateo487/bdui-compact.git
-cd bdui-compact
+git clone https://github.com/elmateo487/bdui-compact-kanban.git
+cd bdui-compact-kanban
 
 # Install dependencies
 bun install
@@ -450,8 +450,8 @@ bdui/
 Contributions welcome! See `CLAUDE.md` for architecture documentation.
 
 ```bash
-git clone https://github.com/elmateo487/bdui-compact.git
-cd bdui-compact
+git clone https://github.com/elmateo487/bdui-compact-kanban.git
+cd bdui-compact-kanban
 bun install
 bun run dev
 ```
