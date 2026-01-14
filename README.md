@@ -162,8 +162,21 @@ Features:
 - Subtask/AC completion counters (e.g., "2/5 ACs done")
 - Per-column pagination and selection
 - **Detail panel** (Space) - Sidebar with issue details
-- **Full detail view** (Enter) - Full-screen with markdown rendering, children list, and navigation between subtasks (Tab to switch sections, ↑/↓ to navigate children)
+- **Full detail view** (Enter) - Full-screen with markdown rendering, children list, and navigation between subtasks (Tab to switch sections, ↑/↓ to navigate children, Enter to drill into blockers/children)
 - Toggle Blocked column with `b`
+
+### Markdown Support in Detail Views
+
+Both the sidebar detail panel and full detail view render issue descriptions with **markdown formatting**:
+
+- **Headers** (`#`, `##`, `###`) - Rendered with appropriate styling and indentation
+- **Bold** (`**text**`) and *Italic* (`*text*`) - Full emphasis support
+- **Code** (`` `inline` `` and ``` ```blocks``` ```) - Syntax highlighting with distinct background
+- **Lists** (`-`, `*`, `1.`) - Bulleted and numbered lists with proper indentation
+- **Blockquotes** (`>`) - Indented quote styling
+- **Links** (`[text](url)`) - Displayed as clickable-style text
+
+The description area in full detail view is **scrollable** - use ↑/↓ arrows to scroll through long descriptions. Scroll indicators show remaining content above/below.
 - **Parents-only filter** (`p`) - Hide ACs, show only epics and tickets
 
 ### Dashboard View (Shift+T)
