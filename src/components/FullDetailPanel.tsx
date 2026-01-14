@@ -21,7 +21,6 @@ export function FullDetailPanel({ issue }: FullDetailPanelProps) {
   const terminalWidth = useBeadsStore(state => state.terminalWidth);
   const terminalHeight = useBeadsStore(state => state.terminalHeight);
   const data = useBeadsStore(state => state.data);
-  const selectedSubtask = useBeadsStore(state => state.fullDetailSelectedSubtask);
   const fullDetailStack = useBeadsStore(state => state.fullDetailStack);
   const descriptionScroll = useBeadsStore(state => state.fullDetailDescriptionScroll);
   const setDescriptionMaxScroll = useBeadsStore(state => state.setFullDetailDescriptionMaxScroll);
@@ -194,6 +193,14 @@ export function FullDetailPanel({ issue }: FullDetailPanelProps) {
         </Text>
       )}
 
+      {/* Close reason - show when closed with a reason */}
+      {issue.status === 'closed' && issue.close_reason && (
+        <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor="yellow">
+          <Text color="yellow" bold> Closed:</Text>
+          <Text color="yellow"> {issue.close_reason}</Text>
+        </Box>
+      )}
+
       {/* Blocking info - show when status is blocked or has blockedBy */}
       {(issue.status === 'blocked' || (issue.blockedBy && issue.blockedBy.length > 0)) && (
         <Box flexDirection="column">
@@ -260,10 +267,12 @@ export function FullDetailPanel({ issue }: FullDetailPanelProps) {
         // Calculate visible window of subtasks centered around selected item
         const effectiveMaxVisible = maxVisibleSubtasks - (totalSubtasks > maxVisibleSubtasks ? 2 : 0); // Account for scroll indicators
         let subtaskScrollOffset = 0;
-        if (totalSubtasks > effectiveMaxVisible && selectedSubtask >= 0) {
+        // Use fullDetailSectionIndex when in subtasks section for scroll calculation
+        const subtaskSelectionIndex = fullDetailSection === 'subtasks' ? fullDetailSectionIndex : -1;
+        if (totalSubtasks > effectiveMaxVisible && subtaskSelectionIndex >= 0) {
           // Center the selected item in the visible window
           subtaskScrollOffset = Math.max(0, Math.min(
-            selectedSubtask - Math.floor(effectiveMaxVisible / 2),
+            subtaskSelectionIndex - Math.floor(effectiveMaxVisible / 2),
             totalSubtasks - effectiveMaxVisible
           ));
         }
@@ -289,7 +298,19 @@ export function FullDetailPanel({ issue }: FullDetailPanelProps) {
               const isDone = child.status === 'closed';
               const isSelected = fullDetailSection === 'subtasks' && index === fullDetailSectionIndex;
               const statusIcon = isDone ? '[x]' : '[ ]';
-              const baseColor = isDone ? theme.colors.success : theme.colors.text;
+
+              // Check if non-completion close (should strikethrough)
+              // Non-completion = explicitly marked as won't do, duplicate, or out of scope
+              const isNonCompletionClose = (): boolean => {
+                if (child.status !== 'closed' || !child.close_reason) return false;
+                const reason = child.close_reason.toLowerCase();
+                // Only strikethrough for explicit non-completion reasons
+                const nonCompletionPatterns = ["won't implement", "wont implement", "duplicate", "out of scope"];
+                return nonCompletionPatterns.some(pattern => reason.includes(pattern));
+              };
+              const shouldStrikethrough = isNonCompletionClose();
+
+              const baseColor = shouldStrikethrough ? 'yellow' : (isDone ? theme.colors.success : theme.colors.text);
               const color = isSelected ? theme.colors.primary : baseColor;
 
               // Count child's subtasks completion
@@ -304,14 +325,13 @@ export function FullDetailPanel({ issue }: FullDetailPanelProps) {
                 }
               }
               const hasSubtasks = childTotal > 0;
-              const subtasksComplete = hasSubtasks && childCompleted === childTotal;
 
               return (
                 <Text key={id}>
                   <Text color={isSelected ? theme.colors.primary : theme.colors.textDim}>{isSelected ? '>' : ' '} </Text>
                   <Text color={color}>{statusIcon} </Text>
                   <Text color={isSelected ? theme.colors.primary : theme.colors.textDim}>{child.id}: </Text>
-                  <Text color={color} bold={isSelected}>{child.title}</Text>
+                  <Text strikethrough={shouldStrikethrough} color={shouldStrikethrough ? 'yellow' : color} bold={isSelected}>{child.title}</Text>
                   {hasSubtasks && (
                     <Text color={childCompleted > 0 ? theme.colors.success : theme.colors.textDim}> {childCompleted}/{childTotal}</Text>
                   )}

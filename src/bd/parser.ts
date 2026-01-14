@@ -32,7 +32,8 @@ export async function loadBeads(beadsPath: string = '.beads'): Promise<BeadsData
         assignee,
         created_at,
         updated_at,
-        closed_at
+        closed_at,
+        close_reason
       FROM issues
     `).all() as Issue[];
 

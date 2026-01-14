@@ -30,6 +30,17 @@ export function IssueCard({ issue, isSelected = false, width = LAYOUT.columnWidt
   };
   const authorityColor = getAuthorityColor();
 
+  // Check if closed with non-completion reason (should be struck through)
+  // Non-completion = explicitly marked as won't do, duplicate, or out of scope
+  const isNonCompletionClose = (): boolean => {
+    if (issue.status !== 'closed' || !issue.close_reason) return false;
+    const reason = issue.close_reason.toLowerCase();
+    // Only strikethrough for explicit non-completion reasons
+    const nonCompletionPatterns = ["won't implement", "wont implement", "duplicate", "out of scope"];
+    return nonCompletionPatterns.some(pattern => reason.includes(pattern));
+  };
+  const shouldStrikethrough = isNonCompletionClose();
+
   // Calculate subtask completion
   const data = useBeadsStore(state => state.data);
   let completedTasks = 0;
@@ -50,11 +61,11 @@ export function IssueCard({ issue, isSelected = false, width = LAYOUT.columnWidt
       width={width}
     >
       {/* Title - up to 2 lines */}
-      <Text bold color={isSelected ? theme.colors.primary : theme.colors.text} wrap="truncate">
+      <Text bold strikethrough={shouldStrikethrough} color={shouldStrikethrough ? theme.colors.textDim : (isSelected ? theme.colors.primary : theme.colors.text)} wrap="truncate">
         {issue.title.slice(0, width - 2)}
       </Text>
       {issue.title.length > width - 2 && (
-        <Text bold color={isSelected ? theme.colors.primary : theme.colors.text} wrap="truncate">
+        <Text bold strikethrough={shouldStrikethrough} color={shouldStrikethrough ? theme.colors.textDim : (isSelected ? theme.colors.primary : theme.colors.text)} wrap="truncate">
           {issue.title.slice(width - 2, (width - 2) * 2)}
         </Text>
       )}

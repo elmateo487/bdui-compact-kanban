@@ -209,6 +209,14 @@ export function DetailPanel({ issue, maxHeight, width, collapsed }: DetailPanelP
         <Text> <ChildrenSummary issue={issue} theme={theme} /></Text>
       )}
 
+      {/* Close reason - show when closed with a reason */}
+      {issue.status === 'closed' && issue.close_reason && (
+        <Box flexDirection="column" borderStyle="single" borderColor="yellow">
+          <Text color="yellow" bold> Closed:</Text>
+          <Text color="yellow"> {issue.close_reason.slice(0, 80)}{issue.close_reason.length > 80 ? '...' : ''}</Text>
+        </Box>
+      )}
+
       {/* Blocking info - show when status is blocked or has blockedBy */}
       {(issue.status === 'blocked' || (issue.blockedBy && issue.blockedBy.length > 0)) && (
         <Box flexDirection="column">

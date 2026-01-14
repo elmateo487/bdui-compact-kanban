@@ -11,6 +11,7 @@ export interface Issue {
   created_at: string;
   updated_at: string;
   closed_at?: string | null;
+  close_reason?: string | null;
 
   // From dependencies table
   parent?: string;
