@@ -6,7 +6,11 @@ A streamlined, real-time Kanban visualizer for the [bd (beads)](https://github.c
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)
 ![Bun](https://img.shields.io/badge/runtime-Bun-f472b6.svg)
 
-![BD TUI Screenshot](assets/screenshot.png)
+![Kanban View](assets/kanban_full_view.png)
+*Kanban board with detail panel*
+
+![Full Detail View](assets/full_detail_view.png)
+*Full detail view with markdown rendering*
 
 ## Why This Fork?
 
@@ -15,7 +19,7 @@ This fork strips down bdui to focus on what matters for **LLM-driven development
 - **Kanban-only view** - Removed tree, graph, and stats views for simplicity
 - **Minimal interaction** - Designed for monitoring, not heavy terminal editing
 - **Live updates** - Reliable WAL polling so LLMs can track issue state changes in real-time
-- **Epic → Ticket → AC hierarchy** - Enforced via `type:epic`, `type:ticket`, `type:ac` labels
+- **Epic → Ticket → AC hierarchy** - Parent-child relationships with completion tracking
 
 ### Ideal For
 
