@@ -7,6 +7,7 @@ import { BeadsWatcher } from '../bd/watcher';
 import { loadBeads, findBeadsDir } from '../bd/parser';
 import { getTheme } from '../themes/themes';
 import { copyToClipboard } from '../utils/export';
+import { LAYOUT } from '../utils/constants';
 
 export function App() {
   const { exit } = useApp();
@@ -134,6 +135,7 @@ export function App() {
   const showToast = useBeadsStore(state => state.showToast);
   const undo = useBeadsStore(state => state.undo);
   const reloadCallback = useBeadsStore(state => state.reloadCallback);
+  const terminalWidth = useBeadsStore(state => state.terminalWidth);
 
   // Handle keyboard input
   useInput((input, key) => {
@@ -338,9 +340,13 @@ export function App() {
       return;
     }
 
-    // Detail panel - Enter opens full detail if panel is visible, otherwise toggles panel
+    // Detail panel - Enter opens full detail if panel is visible or terminal too narrow, otherwise toggles panel
     if (key.return) {
-      if (showDetails) {
+      const minWidthForDetail = LAYOUT.columnWidth * 2 + LAYOUT.detailPanelWidth + 10;
+      const canShowDetailPanel = terminalWidth >= minWidthForDetail;
+
+      if (showDetails || !canShowDetailPanel) {
+        // Open full detail view if detail panel is showing OR if terminal is too narrow for side panel
         toggleFullDetail();
       } else {
         toggleDetails();
