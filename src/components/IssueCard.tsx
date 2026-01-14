@@ -43,7 +43,7 @@ export function IssueCard({ issue, isSelected = false }: IssueCardProps) {
   return (
     <Box
       borderStyle="round"
-      borderColor={isSelected ? theme.colors.primary : theme.colors.border}
+      borderColor={isSelected ? '#FFA500' : theme.colors.border}
       paddingX={0}
       flexDirection="column"
       width={LAYOUT.columnWidth}
@@ -66,7 +66,7 @@ export function IssueCard({ issue, isSelected = false }: IssueCardProps) {
         {totalTasks > 0 && (
           <>
             <Text color={theme.colors.textDim}> </Text>
-            <Text color={completedTasks === totalTasks ? theme.colors.success : theme.colors.textDim}>
+            <Text color={completedTasks > 0 ? theme.colors.success : theme.colors.textDim}>
               {completedTasks}/{totalTasks}
             </Text>
           </>
@@ -75,6 +75,13 @@ export function IssueCard({ issue, isSelected = false }: IssueCardProps) {
           <>
             <Text color={theme.colors.textDim}> </Text>
             <Text color={theme.colors.statusBlocked}>[!]</Text>
+          </>
+        )}
+        {/* Orphan indicator: AC without a parent */}
+        {issue.labels?.includes('type:ac') && !issue.parent && (
+          <>
+            <Text color={theme.colors.textDim}> </Text>
+            <Text color={theme.colors.warning}>[ORPHAN]</Text>
           </>
         )}
       </Text>

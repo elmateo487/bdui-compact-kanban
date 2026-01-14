@@ -1,11 +1,6 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { writeFile, unlink } from 'fs/promises';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { writeFile } from 'fs/promises';
+import { writeFileSync } from 'fs';
 import type { Issue } from '../types';
-
-const execAsync = promisify(exec);
 
 /**
  * Format issue as markdown
@@ -150,51 +145,23 @@ export function formatIssuePlainText(issue: Issue): string {
   return lines.join('\n');
 }
 
-/**
- * Detect clipboard command based on platform
- */
-function getClipboardCommand(): string | null {
-  const platform = process.platform;
-
-  if (platform === 'darwin') {
-    return 'pbcopy';
-  } else if (platform === 'linux') {
-    // Try xclip first, fall back to xsel
-    return 'xclip -selection clipboard || xsel --clipboard --input';
-  } else if (platform === 'win32') {
-    return 'clip';
-  }
-
-  return null;
-}
+/** Path where copied IDs are saved */
+export const CLIPBOARD_FILE = '/tmp/bd-id';
 
 /**
- * Copy text to clipboard using platform-specific command
+ * Copy text to clipboard using OSC 52 escape sequence.
+ * Works over SSH and through tmux (with set-clipboard on).
  */
 export async function copyToClipboard(text: string): Promise<void> {
-  const command = getClipboardCommand();
+  // Also save to file as backup
+  writeFileSync(CLIPBOARD_FILE, text, 'utf-8');
 
-  if (!command) {
-    throw new Error('Clipboard not supported on this platform');
-  }
+  // OSC 52 escape sequence
+  const b64 = Buffer.from(text).toString('base64');
+  const osc52 = `\x1b]52;c;${b64}\x07`;
 
-  try {
-    // Write text to temp file
-    const tmpFile = join(tmpdir(), `bdui-export-${Date.now()}.txt`);
-    await writeFile(tmpFile, text, 'utf-8');
-
-    // Copy to clipboard
-    if (process.platform === 'win32') {
-      await execAsync(`type "${tmpFile}" | ${command}`);
-    } else {
-      await execAsync(`cat "${tmpFile}" | ${command}`);
-    }
-
-    // Clean up temp file
-    await unlink(tmpFile);
-  } catch (error) {
-    throw new Error(`Failed to copy to clipboard: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
+  // Write to stdout
+  process.stdout.write(osc52);
 }
 
 /**

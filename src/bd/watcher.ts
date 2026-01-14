@@ -1,5 +1,4 @@
-import { watch, watchFile, unwatchFile, type FSWatcher } from 'fs';
-import { join } from 'path';
+import { stat } from 'fs';
 import type { BeadsData } from '../types';
 import { loadBeads } from './parser';
 
@@ -7,43 +6,91 @@ export type UpdateCallback = (data: BeadsData) => void;
 
 /**
  * Watch beads.db for changes and trigger callbacks
+ * Uses polling on WAL file size - most reliable approach for SQLite databases
+ *
+ * Why polling instead of fs.watch:
+ * - macOS FSEvents is unreliable for SQLite WAL mode databases
+ * - mtime has 1-second resolution, misses rapid changes
+ * - WAL file SIZE changes with every write, even within same second
+ * - 500ms polling is low CPU and provides good responsiveness for a TUI
  */
 export class BeadsWatcher {
-  private watcher: FSWatcher | null = null;
+  private pollInterval: Timer | null = null;
   private callbacks: Set<UpdateCallback> = new Set();
   private beadsPath: string;
   private debounceTimeout: Timer | null = null;
-  private lastTouchedPath: string;
+  private lastWalSize: number = 0;
+  private lastDbMtime: number = 0;
 
   constructor(beadsPath: string) {
     this.beadsPath = beadsPath;
-    this.lastTouchedPath = join(beadsPath, 'last-touched');
   }
 
   /**
-   * Start watching for beads changes using polling on last-touched file
+   * Start watching for beads changes
+   * Polls WAL file size every 500ms
    */
   start() {
-    if (this.watcher) return;
+    if (this.pollInterval) return;
 
-    // Use watchFile (polling) on the last-touched file - more reliable on macOS
-    // Beads updates this file on every database change
-    watchFile(
-      this.lastTouchedPath,
-      { interval: 500 }, // Poll every 500ms
-      (curr, prev) => {
-        if (curr.mtime > prev.mtime) {
+    // Initialize baseline
+    this.updateBaseline();
+
+    // Poll every 500ms - reliable and low CPU
+    this.pollInterval = setInterval(() => {
+      this.checkForChanges();
+    }, 500);
+  }
+
+  /**
+   * Check if database has changed by comparing WAL size and DB mtime
+   */
+  private checkForChanges() {
+    const walPath = `${this.beadsPath}/beads.db-wal`;
+    const dbPath = `${this.beadsPath}/beads.db`;
+
+    // Check WAL file size (changes with every write)
+    stat(walPath, (walErr, walStats) => {
+      const walSize = walErr ? 0 : walStats.size;
+
+      // Also check main DB mtime (changes on checkpoint)
+      stat(dbPath, (dbErr, dbStats) => {
+        const dbMtime = dbErr ? 0 : dbStats.mtimeMs;
+
+        // Trigger if WAL size changed OR main DB was checkpointed
+        if (walSize !== this.lastWalSize || dbMtime > this.lastDbMtime) {
+          this.lastWalSize = walSize;
+          this.lastDbMtime = dbMtime;
           this.handleChange();
         }
-      }
-    );
+      });
+    });
+  }
+
+  /**
+   * Update baseline values
+   */
+  private updateBaseline() {
+    const walPath = `${this.beadsPath}/beads.db-wal`;
+    const dbPath = `${this.beadsPath}/beads.db`;
+
+    stat(walPath, (err, stats) => {
+      if (!err) this.lastWalSize = stats.size;
+    });
+
+    stat(dbPath, (err, stats) => {
+      if (!err) this.lastDbMtime = stats.mtimeMs;
+    });
   }
 
   /**
    * Stop watching
    */
   stop() {
-    unwatchFile(this.lastTouchedPath);
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
 
     if (this.debounceTimeout) {
       clearTimeout(this.debounceTimeout);
@@ -57,7 +104,6 @@ export class BeadsWatcher {
   subscribe(callback: UpdateCallback): () => void {
     this.callbacks.add(callback);
 
-    // Return unsubscribe function
     return () => {
       this.callbacks.delete(callback);
     };
@@ -67,7 +113,6 @@ export class BeadsWatcher {
    * Handle file system changes with debouncing
    */
   private handleChange() {
-    // Debounce rapid file changes
     if (this.debounceTimeout) {
       clearTimeout(this.debounceTimeout);
     }
@@ -75,7 +120,7 @@ export class BeadsWatcher {
     this.debounceTimeout = setTimeout(async () => {
       const data = await loadBeads(this.beadsPath);
       this.notifySubscribers(data);
-    }, 100);
+    }, 50); // Short debounce since we're already polling at 500ms
   }
 
   /**
@@ -95,6 +140,7 @@ export class BeadsWatcher {
    * Manually trigger a reload
    */
   async reload() {
+    this.updateBaseline();
     const data = await loadBeads(this.beadsPath);
     this.notifySubscribers(data);
   }

@@ -44,9 +44,7 @@ export const TYPE_LABELS: Record<string, string> = {
 // View names for footer display
 export const VIEW_NAMES: Record<string, string> = {
   kanban: 'Kanban',
-  tree: 'Tree',
-  graph: 'Graph',
-  stats: 'Stats',
+  'total-list': 'Dashboard',
 };
 
 // Helper function to get priority color from theme (P0=highest, P4=lowest)
@@ -104,13 +102,14 @@ export function truncateText(
   return truncated.trimEnd() + '...';
 }
 
-// Check if filters are active
+// Check if filters are active (parentsOnly is not counted as it's the default view)
 export function hasActiveFilters(filter: {
   assignee?: string;
   tags?: string[];
   status?: string;
   priority?: number;
   type?: string;
+  parentsOnly?: boolean;
 }, searchQuery: string): boolean {
   return !!(
     searchQuery.trim() ||

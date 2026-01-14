@@ -5,7 +5,7 @@ export interface Issue {
   description: string;
   status: 'open' | 'closed' | 'in_progress' | 'blocked';
   priority: number; // 0-4 (0=highest, 4=lowest)
-  issue_type: 'task' | 'epic' | 'bug' | 'feature' | 'chore';
+  issue_type: 'epic' | 'story' | 'bug' | 'ac' | 'blocker' | 'task' | 'feature' | 'chore';
   assignee?: string | null;
   labels?: string[]; // From labels table
   created_at: string;

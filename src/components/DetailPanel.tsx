@@ -6,7 +6,6 @@ import { getTheme } from '../themes/themes';
 import {
   PRIORITY_LABELS,
   getPriorityColor,
-  getTypeColor,
   getStatusColor,
 } from '../utils/constants';
 import { renderMarkdownLines } from './MarkdownText';
@@ -15,6 +14,7 @@ interface DetailPanelProps {
   issue: Issue | null;
   maxHeight?: number;
   width?: number;
+  collapsed?: boolean;
 }
 
 // Default width if not provided
@@ -32,7 +32,7 @@ function DescriptionBox({ description, theme, maxLines, contentWidth }: { descri
   const visibleLines = contentLines ? renderedLines.slice(0, contentLines) : renderedLines;
 
   return (
-    <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor={theme.colors.border}>
+    <Box flexDirection="column" borderStyle="single" borderColor={theme.colors.border}>
       {visibleLines.map((line, i) => (
         <Text key={i}> {line || ''}</Text>
       ))}
@@ -43,11 +43,12 @@ function DescriptionBox({ description, theme, maxLines, contentWidth }: { descri
   );
 }
 
-// Subtasks summary component
-function SubtasksSummary({ childIds, theme }: { childIds: string[], theme: any }) {
+// Children summary component with hierarchy-aware labeling
+function ChildrenSummary({ issue, theme }: { issue: Issue, theme: any }) {
   const data = useBeadsStore(state => state.data);
 
   let completed = 0;
+  const childIds = issue.children || [];
   for (const id of childIds) {
     const child = data.byId.get(id);
     if (child && child.status === 'closed') {
@@ -56,17 +57,33 @@ function SubtasksSummary({ childIds, theme }: { childIds: string[], theme: any }
   }
 
   const total = childIds.length;
-  const color = completed === total ? theme.colors.success : theme.colors.textDim;
+  const isEpic = issue.issue_type === 'epic';
+  const label = isEpic ? 'Tickets' : 'Acceptance Criteria';
+  const labelColor = isEpic ? '#FFA500' : 'yellow'; // orange for tickets, yellow for ACs
+  const countColor = completed > 0 ? theme.colors.success : theme.colors.textDim;
 
   return (
-    <Text color={color}>
-      Subtasks: {completed}/{total} complete
+    <Text>
+      <Text color={labelColor} bold>{label}</Text>
+      <Text color={countColor}>: {completed}/{total}</Text>
     </Text>
   );
 }
 
-export function DetailPanel({ issue, maxHeight, width }: DetailPanelProps) {
+// Get hierarchy-aware type info
+function getHierarchyInfo(issue: Issue, data: any): { label: string; color: string } {
+  if (issue.issue_type === 'epic') return { label: 'Epic', color: 'magenta' };
+  if (issue.parent) {
+    const parent = data.byId.get(issue.parent);
+    if (parent?.issue_type === 'epic') return { label: 'Ticket', color: '#FFA500' };
+    return { label: 'Acceptance Criteria', color: 'yellow' };
+  }
+  return { label: 'Ticket', color: '#FFA500' };
+}
+
+export function DetailPanel({ issue, maxHeight, width, collapsed }: DetailPanelProps) {
   const currentTheme = useBeadsStore(state => state.currentTheme);
+  const data = useBeadsStore(state => state.data);
   const theme = getTheme(currentTheme);
 
   // Calculate panel and content widths
@@ -85,6 +102,33 @@ export function DetailPanel({ issue, maxHeight, width }: DetailPanelProps) {
   const dynamicOverhead = labelsLines + subtasksLines + blockedByLines + blocksLines + parentLine;
   const descriptionMaxLines = maxHeight ? Math.max(3, maxHeight - fixedOverhead - dynamicOverhead) : 10;
 
+  // Show collapsed placeholder when panel is hidden
+  if (collapsed) {
+    return (
+      <Box
+        flexDirection="column"
+        borderStyle="single"
+        borderColor={theme.colors.border}
+        width={panelWidth}
+        height={maxHeight}
+      >
+        <Text color={theme.colors.textDim} bold> Detail Panel</Text>
+        <Text color={theme.colors.border}>{'─'.repeat(panelWidth - 2)}</Text>
+
+        <Box flexDirection="column" marginTop={1} paddingX={1}>
+          <Text color={theme.colors.textDim} italic>Panel hidden</Text>
+        </Box>
+
+        <Box flexGrow={1} />
+
+        <Box flexDirection="column" paddingX={1}>
+          <Text color={theme.colors.border}>{'─'.repeat(panelWidth - 4)}</Text>
+          <Text color={theme.colors.textDim}> <Text color={theme.colors.secondary}>Space</Text> Show panel</Text>
+        </Box>
+      </Box>
+    );
+  }
+
   if (!issue) {
     return (
       <Box
@@ -92,12 +136,18 @@ export function DetailPanel({ issue, maxHeight, width }: DetailPanelProps) {
         borderStyle="single"
         borderColor={theme.colors.border}
         width={panelWidth}
+        height={maxHeight}
       >
-        <Text color={theme.colors.textDim} italic> No issue selected</Text>
-        <Box marginTop={1}>
-          <Text color={theme.colors.textDim}>
-            {' '}Select an issue with arrow keys
-          </Text>
+        <Text color={theme.colors.textDim} bold> Detail Panel</Text>
+        <Text color={theme.colors.border}>{'─'.repeat(panelWidth - 2)}</Text>
+
+        <Box flexDirection="column" marginTop={1} paddingX={1}>
+          <Text color={theme.colors.textDim} italic>No issue selected</Text>
+          <Box marginTop={1}>
+            <Text color={theme.colors.textDim}>
+              Select an issue from the board to view its details here.
+            </Text>
+          </Box>
         </Box>
       </Box>
     );
@@ -105,8 +155,8 @@ export function DetailPanel({ issue, maxHeight, width }: DetailPanelProps) {
 
   const priorityLabel = PRIORITY_LABELS[issue.priority] || 'Unknown';
   const priorityColor = getPriorityColor(issue.priority, theme);
-  const typeColor = getTypeColor(issue.issue_type, theme);
   const statusColor = getStatusColor(issue.status, theme);
+  const hierarchy = getHierarchyInfo(issue, data);
 
   return (
     <Box
@@ -116,16 +166,15 @@ export function DetailPanel({ issue, maxHeight, width }: DetailPanelProps) {
       width={panelWidth}
       height={maxHeight}
     >
-      {/* Header - title truncates, ID on separate line */}
-      <Box flexDirection="column">
-        <Text bold color={theme.colors.primary}> {issue.title}</Text>
-        <Text color={theme.colors.textDim} dimColor> {issue.id}</Text>
-      </Box>
+      {/* Header - title truncated to panel width */}
+      <Text bold color={theme.colors.primary}> {issue.title.length > panelWidth - 4 ? issue.title.slice(0, panelWidth - 7) + '...' : issue.title}</Text>
+      {/* ID on separate line */}
+      <Text color={theme.colors.textDim} dimColor> {issue.id}</Text>
 
       {/* Compact metadata line */}
       <Text>
         <Text> </Text>
-        <Text color={typeColor}>{issue.issue_type}</Text>
+        <Text color={hierarchy.color} bold>{hierarchy.label}</Text>
         <Text color={theme.colors.textDim}> | </Text>
         <Text color={priorityColor}>P{issue.priority}</Text>
         <Text color={theme.colors.textDim}> | </Text>
@@ -151,9 +200,9 @@ export function DetailPanel({ issue, maxHeight, width }: DetailPanelProps) {
         </Text>
       )}
 
-      {/* Subtasks summary */}
+      {/* Children summary */}
       {issue.children && issue.children.length > 0 && (
-        <Text> <SubtasksSummary childIds={issue.children} theme={theme} /></Text>
+        <Text> <ChildrenSummary issue={issue} theme={theme} /></Text>
       )}
 
       {/* Dependencies - only if present */}
@@ -175,14 +224,27 @@ export function DetailPanel({ issue, maxHeight, width }: DetailPanelProps) {
         </Box>
       )}
 
-      {issue.parent && (
-        <Text color={theme.colors.textDim}> Parent: {issue.parent}</Text>
-      )}
+      {issue.parent && (() => {
+        const parent = data.byId.get(issue.parent);
+        const isParentEpic = parent?.issue_type === 'epic';
+        const parentLabel = isParentEpic ? 'Epic' : 'Ticket';
+        const parentColor = isParentEpic ? 'magenta' : '#FFA500';
+        return (
+          <Text>
+            <Text> </Text>
+            <Text color={parentColor} bold>{parentLabel}</Text>
+            <Text color={theme.colors.textDim}>: {parent?.title || issue.parent}</Text>
+          </Text>
+        );
+      })()}
 
       {/* Description - fills remaining space with markdown */}
       {issue.description && (
         <DescriptionBox description={issue.description} theme={theme} maxLines={descriptionMaxLines} contentWidth={contentWidth} />
       )}
+
+      {/* Spacer to push footer to bottom */}
+      <Box flexGrow={1} />
 
       {/* Compact timestamp */}
       <Text color={theme.colors.textDim} dimColor>
@@ -190,7 +252,7 @@ export function DetailPanel({ issue, maxHeight, width }: DetailPanelProps) {
       </Text>
 
       {/* Actions hint */}
-      <Text color={theme.colors.textDim} dimColor> Enter: full | e: edit | x: export</Text>
+      <Text color={theme.colors.textDim} dimColor> Enter: full | i: copy | e: edit | x: export</Text>
     </Box>
   );
 }

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { BeadsData, Issue } from '../types';
 import { detectStatusChanges, notifyStatusChange } from '../utils/notifications';
 import { LAYOUT } from '../utils/constants';
+import { loadSettings, saveSettings, setBeadsDir, type UISettings } from '../utils/settings';
 
 type StatusKey = 'open' | 'closed' | 'in_progress' | 'blocked';
 
@@ -39,10 +40,11 @@ interface BeadsStore {
   selectedColumn: number; // 0-3 for open/in_progress/blocked/closed
   columnStates: Record<StatusKey, ColumnState>; // Independent pagination per column
   itemsPerPage: number;
+  visibleColumnCount: number; // Number of visible columns in kanban view
 
   // UI state
-  viewMode: 'kanban' | 'tree' | 'graph' | 'stats' | 'create-issue' | 'edit-issue';
-  previousView: 'kanban' | 'tree' | 'graph' | 'stats';
+  viewMode: 'kanban' | 'create-issue' | 'edit-issue' | 'total-list';
+  previousView: 'kanban';
   showHelp: boolean;
   showDetails: boolean;
   showSearch: boolean;
@@ -53,6 +55,7 @@ interface BeadsStore {
   showBlockedColumn: boolean;
   showFullDetail: boolean;
   fullDetailStack: string[]; // Stack of issue IDs for navigation
+  fullDetailSelectionHistory: number[]; // Stack of selected subtask indices (parallel to fullDetailStack)
   fullDetailSelectedSubtask: number; // Selected subtask index (-1 means scrolling description)
   fullDetailDescriptionScroll: number; // Scroll offset for description
   fullDetailDescriptionMaxScroll: number; // Max scroll value (set by component)
@@ -80,6 +83,7 @@ interface BeadsStore {
     status?: string;
     priority?: number;
     type?: string;
+    parentsOnly?: boolean;
   };
 
   // Actions
@@ -89,6 +93,7 @@ interface BeadsStore {
   getFilteredIssues: () => Issue[];
   getFilteredByStatus: () => Record<StatusKey, Issue[]>;
   setTerminalSize: (width: number, height: number) => void;
+  setVisibleColumnCount: (count: number) => void;
 
   // Navigation actions
   moveUp: () => void;
@@ -109,6 +114,8 @@ interface BeadsStore {
   toggleThemeSelector: () => void;
   toggleJumpToPage: () => void;
   toggleBlockedColumn: () => void;
+  toggleParentsOnly: () => void;
+  initSettings: (beadsPath: string) => void;
   toggleFullDetail: () => void;
   pushFullDetail: (issueId: string) => void;
   popFullDetail: () => void;
@@ -120,7 +127,8 @@ interface BeadsStore {
   getFullDetailIssue: () => Issue | null;
   setTheme: (theme: string) => void;
   clearFilters: () => void;
-  setViewMode: (mode: 'kanban' | 'tree' | 'graph' | 'stats' | 'create-issue' | 'edit-issue') => void;
+  setViewMode: (mode: 'kanban' | 'create-issue' | 'edit-issue' | 'total-list') => void;
+  navigateToTotalList: () => void;
   navigateToCreateIssue: () => void;
   navigateToEditIssue: () => void;
   returnToPreviousView: () => void;
@@ -179,6 +187,7 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
     'closed': { selectedIndex: 0, scrollOffset: 0 },
   },
   itemsPerPage: 10, // Will be recalculated based on terminal height
+  visibleColumnCount: 2, // Default to 2 columns (open, in_progress)
 
   // UI state
   viewMode: 'kanban',
@@ -190,9 +199,10 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   showExportDialog: false,
   showThemeSelector: false,
   showJumpToPage: false,
-  showBlockedColumn: false,
+  showBlockedColumn: true,  // Default to visible, persisted in ui-settings.json
   showFullDetail: false,
   fullDetailStack: [],
+  fullDetailSelectionHistory: [],
   fullDetailSelectedSubtask: -1, // -1 means description scrolling mode
   fullDetailDescriptionScroll: 0,
   fullDetailDescriptionMaxScroll: 0,
@@ -210,7 +220,7 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   undoHistory: [],
   maxUndoHistory: 10,
 
-  filter: { type: 'epic' },
+  filter: { parentsOnly: true },
 
   setTerminalSize: (width, height) => {
     const uiOverhead = LAYOUT.uiOverhead;
@@ -223,6 +233,16 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
       terminalHeight: height,
       itemsPerPage,
     });
+  },
+
+  setVisibleColumnCount: (count) => {
+    const state = get();
+    // If current selection is beyond visible columns, reset to last visible
+    if (state.selectedColumn >= count) {
+      set({ visibleColumnCount: count, selectedColumn: count - 1 });
+    } else {
+      set({ visibleColumnCount: count });
+    }
   },
 
   setData: (data) => {
@@ -328,6 +348,12 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
       issues = issues.filter(issue => issue.issue_type === filter.type);
     }
 
+    // Filter to show only root-level issues (no parent)
+    // Note: ACs without parents are orphans and should still be shown
+    if (filter.parentsOnly) {
+      issues = issues.filter(issue => !issue.parent);
+    }
+
     return issues;
   },
 
@@ -339,6 +365,7 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
       filter.status ||
       filter.priority !== undefined ||
       filter.type ||
+      filter.parentsOnly ||
       (filter.tags && filter.tags.length > 0)
     );
 
@@ -516,8 +543,8 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   },
 
   moveRight: () => {
-    const { selectedColumn } = get();
-    if (selectedColumn < STATUS_KEYS.length - 1) {
+    const { selectedColumn, visibleColumnCount } = get();
+    if (selectedColumn < visibleColumnCount - 1) {
       set({ selectedColumn: selectedColumn + 1 });
     }
   },
@@ -585,7 +612,11 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   },
 
   toggleDetails: () => {
-    set(state => ({ showDetails: !state.showDetails }));
+    set(state => {
+      const newValue = !state.showDetails;
+      saveSettings({ showDetails: newValue });
+      return { showDetails: newValue };
+    });
   },
 
   toggleNotifications: () => {
@@ -640,14 +671,37 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   },
 
   toggleBlockedColumn: () => {
-    set(state => ({ showBlockedColumn: !state.showBlockedColumn }));
+    set(state => {
+      const newValue = !state.showBlockedColumn;
+      saveSettings({ showBlockedColumn: newValue });
+      return { showBlockedColumn: newValue };
+    });
+  },
+
+  initSettings: (beadsPath: string) => {
+    setBeadsDir(beadsPath);
+    const settings = loadSettings();
+    set({
+      showBlockedColumn: settings.showBlockedColumn,
+      showDetails: settings.showDetails,
+      currentTheme: settings.currentTheme,
+    });
+  },
+
+  toggleParentsOnly: () => {
+    set(state => ({
+      filter: {
+        ...state.filter,
+        parentsOnly: !state.filter.parentsOnly,
+      },
+    }));
   },
 
   toggleFullDetail: () => {
     const state = get();
     if (state.showFullDetail) {
       // Close full detail
-      set({ showFullDetail: false, fullDetailStack: [], fullDetailSelectedSubtask: -1, fullDetailDescriptionScroll: 0 });
+      set({ showFullDetail: false, fullDetailStack: [], fullDetailSelectionHistory: [], fullDetailSelectedSubtask: -1, fullDetailDescriptionScroll: 0 });
     } else {
       // Open full detail with current selected issue
       const selectedIssue = state.getSelectedIssue();
@@ -655,6 +709,7 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
         set({
           showFullDetail: true,
           fullDetailStack: [selectedIssue.id],
+          fullDetailSelectionHistory: [-1], // Initial selection for root level
           fullDetailSelectedSubtask: -1,
           fullDetailDescriptionScroll: 0,
         });
@@ -665,6 +720,8 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   pushFullDetail: (issueId: string) => {
     set(state => ({
       fullDetailStack: [...state.fullDetailStack, issueId],
+      // Save current selection before pushing, then reset for new level
+      fullDetailSelectionHistory: [...state.fullDetailSelectionHistory, state.fullDetailSelectedSubtask],
       fullDetailSelectedSubtask: -1,
       fullDetailDescriptionScroll: 0,
     }));
@@ -673,15 +730,17 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   popFullDetail: () => {
     const state = get();
     if (state.fullDetailStack.length > 1) {
-      // Pop one level
+      // Pop one level and restore previous selection
+      const previousSelection = state.fullDetailSelectionHistory[state.fullDetailSelectionHistory.length - 1] ?? -1;
       set({
         fullDetailStack: state.fullDetailStack.slice(0, -1),
-        fullDetailSelectedSubtask: -1,
+        fullDetailSelectionHistory: state.fullDetailSelectionHistory.slice(0, -1),
+        fullDetailSelectedSubtask: previousSelection,
         fullDetailDescriptionScroll: 0,
       });
     } else {
       // Close full detail entirely
-      set({ showFullDetail: false, fullDetailStack: [], fullDetailSelectedSubtask: -1, fullDetailDescriptionScroll: 0 });
+      set({ showFullDetail: false, fullDetailStack: [], fullDetailSelectionHistory: [], fullDetailSelectedSubtask: -1, fullDetailDescriptionScroll: 0 });
     }
   },
 
@@ -750,12 +809,15 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
     return data.byId.get(currentId) || null;
   },
 
-  setTheme: (theme) => set({ currentTheme: theme }),
+  setTheme: (theme) => {
+    saveSettings({ currentTheme: theme });
+    set({ currentTheme: theme });
+  },
 
   clearFilters: () => {
     set({
       searchQuery: '',
-      filter: { type: 'epic' },  // Keep default type filter
+      filter: { parentsOnly: true },  // Keep default parentsOnly filter
       showSearch: false,
       showFilter: false,
     });
@@ -790,6 +852,13 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
       set({ viewMode: 'edit-issue', previousView: state.viewMode });
     } else {
       set({ viewMode: 'edit-issue' });
+    }
+  },
+
+  navigateToTotalList: () => {
+    const state = get();
+    if (state.viewMode !== 'total-list') {
+      set({ viewMode: 'total-list', previousView: 'kanban' });
     }
   },
 
@@ -831,13 +900,13 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
     };
     set({ toastMessage: toast });
 
-    // Auto-clear toast after 3 seconds
+    // Auto-clear toast after 2 seconds
     setTimeout(() => {
       const state = get();
       if (state.toastMessage?.id === toast.id) {
         set({ toastMessage: null });
       }
-    }, 3000);
+    }, 2000);
   },
 
   clearToast: () => set({ toastMessage: null }),

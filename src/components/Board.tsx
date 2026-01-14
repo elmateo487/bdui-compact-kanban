@@ -1,19 +1,18 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { Box, Text } from 'ink';
 import { useBeadsStore } from '../state/store';
 import { getTheme } from '../themes/themes';
 import { StatusColumn } from './StatusColumn';
+import { StackedStatusColumns } from './StackedStatusColumns';
 import { DetailPanel } from './DetailPanel';
 import { HelpOverlay } from './HelpOverlay';
-import { TreeView } from './TreeView';
-import { DependencyGraph } from './DependencyGraph';
 import { SearchInput } from './SearchInput';
 import { FilterPanel } from './FilterPanel';
 import { CreateIssueForm } from './CreateIssueForm';
 import { EditIssueForm } from './EditIssueForm';
 import { ExportDialog } from './ExportDialog';
 import { ThemeSelector } from './ThemeSelector';
-import { StatsView } from './StatsView';
+import { TotalListView } from './TotalListView';
 import { Toast } from './Toast';
 import { FiltersBanner } from './FiltersBanner';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -24,7 +23,15 @@ import type { Issue } from '../types';
 
 function KanbanView() {
   const data = useBeadsStore(state => state.data);
+  const stats = useBeadsStore(state => state.data.stats);
   const selectedColumn = useBeadsStore(state => state.selectedColumn);
+
+  // Force re-render after mount to fix Ink initial render issue
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    const timer = setTimeout(() => forceUpdate(n => n + 1), 50);
+    return () => clearTimeout(timer);
+  }, []);
   const columnStates = useBeadsStore(state => state.columnStates);
   const itemsPerPage = useBeadsStore(state => state.itemsPerPage);
   const showDetails = useBeadsStore(state => state.showDetails);
@@ -34,6 +41,7 @@ function KanbanView() {
   const showThemeSelector = useBeadsStore(state => state.showThemeSelector);
   const showJumpToPage = useBeadsStore(state => state.showJumpToPage);
   const showBlockedColumn = useBeadsStore(state => state.showBlockedColumn);
+  const setVisibleColumnCount = useBeadsStore(state => state.setVisibleColumnCount);
   const toggleExportDialog = useBeadsStore(state => state.toggleExportDialog);
   const toggleThemeSelector = useBeadsStore(state => state.toggleThemeSelector);
   const terminalWidth = useBeadsStore(state => state.terminalWidth);
@@ -50,8 +58,10 @@ function KanbanView() {
   const filtersActive = hasActiveFilters(filter, searchQuery);
 
   // Apply filtering - rebuild byStatus from filtered issues
+  // Note: parentsOnly is not in hasActiveFilters (so it doesn't show in banner) but we still need to apply it
+  const needsFiltering = filtersActive || filter.parentsOnly;
   const filteredData = useMemo(() => {
-    if (!filtersActive) {
+    if (!needsFiltering) {
       return data;
     }
 
@@ -110,67 +120,51 @@ function KanbanView() {
         blocked: byStatus.blocked.length,
       },
     };
-  }, [data, searchQuery, filter, getFilteredIssues, filtersActive]);
+  }, [data, searchQuery, filter, getFilteredIssues, needsFiltering]);
 
-  // Build status config based on whether blocked column is shown
-  const baseStatusConfig = [
-    { key: 'open', title: 'Open' },
-    { key: 'in_progress', title: 'In Progress' },
-    ...(showBlockedColumn ? [{ key: 'blocked', title: 'Blocked' }] : []),
-  ] as const;
-
-  const maxColumns = baseStatusConfig.length;
+  // With stacked layout: Open is column 0, In Progress (+ optional Blocked) is column 1
+  // Navigation uses 2 or 3 logical columns depending on showBlockedColumn
+  const maxColumns = showBlockedColumn ? 3 : 2;
+  const visualColumns = 2; // Open + InProgress (with optional Blocked stacked)
 
   // Responsive layout calculations
   const COLUMN_WIDTH = LAYOUT.columnWidth;
   const DETAIL_PANEL_WIDTH = LAYOUT.detailPanelWidth;
-  const MIN_WIDTH_FOR_DETAIL = COLUMN_WIDTH * maxColumns + DETAIL_PANEL_WIDTH + 10;
-  const MIN_WIDTH_FOR_ALL_COLUMNS = COLUMN_WIDTH * maxColumns + 10;
+  const MIN_WIDTH_FOR_DETAIL = COLUMN_WIDTH * visualColumns + DETAIL_PANEL_WIDTH + 10;
+  const MIN_WIDTH_FOR_ALL_COLUMNS = COLUMN_WIDTH * visualColumns + 10;
 
   // Auto-hide detail panel on narrow screens
   const shouldShowDetails = showDetails && terminalWidth >= MIN_WIDTH_FOR_DETAIL;
 
-  // Determine how many columns to show
-  const visibleColumns = terminalWidth < MIN_WIDTH_FOR_ALL_COLUMNS && terminalWidth >= COLUMN_WIDTH * 2
-    ? 2
-    : terminalWidth < COLUMN_WIDTH * 2
-    ? 1
-    : maxColumns;
+  // With stacked layout, we always show both visual columns if possible
+  const showBothVisualColumns = terminalWidth >= MIN_WIDTH_FOR_ALL_COLUMNS;
 
-  const statusConfig = baseStatusConfig;
-
-  // Filter columns based on screen width
-  const columnsToShow = statusConfig.slice(0, visibleColumns);
+  // Update store with visible column count for navigation
+  // maxColumns is the logical count (for keyboard navigation)
+  useEffect(() => {
+    setVisibleColumnCount(maxColumns);
+  }, [maxColumns, setVisibleColumnCount]);
 
   // Calculate available width for detail panel
-  // terminalWidth - (columns * columnWidth) - marginLeft(1)
-  const detailPanelAvailableWidth = terminalWidth - (visibleColumns * COLUMN_WIDTH) - 1;
+  const detailPanelAvailableWidth = terminalWidth - (visualColumns * COLUMN_WIDTH) - 1;
+
+  // Calculate height for stacked columns (total height minus header/footer overhead)
+  // Header: 3 lines, Footer: 2 lines, Filter banner: 4 lines if active
+  const stackedColumnHeight = terminalHeight - (filtersActive ? 6 : 2);
 
   return (
     <Box flexDirection="column" width={terminalWidth} height={terminalHeight}>
-      {/* Toast message */}
-      <Toast />
-
       {/* Header */}
-      <Box flexDirection="column">
-        <Box justifyContent="space-between">
-          <Text bold color={theme.colors.primary}>
-            BD TUI - Kanban Board
-          </Text>
-          <Text color={theme.colors.textDim}>
-            {terminalWidth}x{terminalHeight} | Press ? for help
-          </Text>
-        </Box>
+      <Box justifyContent="space-between">
         <Box gap={2}>
-          <Text color={theme.colors.textDim}>Total: <Text color={theme.colors.text}>{filteredData.stats.total}</Text></Text>
-          <Text color={theme.colors.textDim}>Open: <Text color={theme.colors.statusOpen}>{filteredData.stats.open}</Text></Text>
-          {showBlockedColumn && (
-            <Text color={theme.colors.textDim}>Blocked: <Text color={theme.colors.statusBlocked}>{filteredData.stats.blocked}</Text></Text>
-          )}
-          {visibleColumns < maxColumns && (
-            <Text color={theme.colors.warning}>[{maxColumns - visibleColumns} hidden]</Text>
+          <Text color={theme.colors.textDim}>Total: <Text color={theme.colors.text}>{stats.total}</Text></Text>
+          <Text color={theme.colors.textDim}>Open: <Text color={theme.colors.statusOpen}>{stats.open}</Text></Text>
+          <Text color={theme.colors.textDim}>Blocked: <Text color={theme.colors.statusBlocked}>{stats.blocked}</Text></Text>
+          {!showBothVisualColumns && (
+            <Text color={theme.colors.warning}>[narrow: WIP/Blocked hidden]</Text>
           )}
         </Box>
+        <Text color={theme.colors.textDim}>{terminalWidth}x{terminalHeight}</Text>
       </Box>
 
       {/* Filters banner */}
@@ -184,32 +178,66 @@ function KanbanView() {
 
       {/* Main content */}
       <Box flexGrow={1} overflow="hidden">
-        {/* Board columns */}
+        {/* Board columns: Open + Stacked(InProgress/Blocked) */}
         <Box flexShrink={0}>
-          {columnsToShow.map(({ key, title }, idx) => {
-            const columnState = columnStates[key];
-            return (
-              <StatusColumn
-                key={key}
-                title={title}
-                issues={filteredData.byStatus[key] || []}
-                isActive={selectedColumn === idx}
-                selectedIndex={columnState.selectedIndex}
-                scrollOffset={columnState.scrollOffset}
-                itemsPerPage={itemsPerPage}
-                statusKey={key}
-              />
-            );
-          })}
+          {/* Open column - full height */}
+          <StatusColumn
+            title="Open"
+            issues={filteredData.byStatus['open'] || []}
+            isActive={selectedColumn === 0}
+            selectedIndex={columnStates['open'].selectedIndex}
+            scrollOffset={columnStates['open'].scrollOffset}
+            itemsPerPage={itemsPerPage}
+            statusKey="open"
+          />
+
+          {/* In Progress column - full height when blocked hidden, stacked when shown */}
+          {showBothVisualColumns && !showBlockedColumn && (
+            <StatusColumn
+              title="In Progress"
+              issues={filteredData.byStatus['in_progress'] || []}
+              isActive={selectedColumn === 1}
+              selectedIndex={columnStates['in_progress'].selectedIndex}
+              scrollOffset={columnStates['in_progress'].scrollOffset}
+              itemsPerPage={itemsPerPage}
+              statusKey="in_progress"
+            />
+          )}
+
+          {/* Stacked In Progress / Blocked columns when blocked is shown */}
+          {showBothVisualColumns && showBlockedColumn && (
+            <StackedStatusColumns
+              topTitle="In Progress"
+              topIssues={filteredData.byStatus['in_progress'] || []}
+              topIsActive={selectedColumn === 1}
+              topSelectedIndex={columnStates['in_progress'].selectedIndex}
+              topScrollOffset={columnStates['in_progress'].scrollOffset}
+              topStatusKey="in_progress"
+              bottomTitle="Blocked"
+              bottomIssues={filteredData.byStatus['blocked'] || []}
+              bottomIsActive={selectedColumn === 2}
+              bottomSelectedIndex={columnStates['blocked'].selectedIndex}
+              bottomScrollOffset={columnStates['blocked'].scrollOffset}
+              bottomStatusKey="blocked"
+              totalHeight={stackedColumnHeight}
+              itemsPerPage={itemsPerPage}
+            />
+          )}
         </Box>
 
-        {/* Detail panel */}
-        {shouldShowDetails && (
+        {/* Detail panel - always show when terminal wide enough */}
+        {terminalWidth >= MIN_WIDTH_FOR_DETAIL && (
           <Box marginLeft={1} flexGrow={1} overflow="hidden">
-            <DetailPanel issue={selectedIssue} maxHeight={terminalHeight - 10} width={detailPanelAvailableWidth} />
+            {/* Overhead: header(2) + footer with border(3) = 5, plus filter banner(4) if active */}
+            <DetailPanel
+              issue={selectedIssue}
+              maxHeight={terminalHeight - (filtersActive ? 6 : 2)}
+              width={detailPanelAvailableWidth}
+              collapsed={!showDetails}
+            />
           </Box>
         )}
-        {showDetails && !shouldShowDetails && (
+        {showDetails && terminalWidth < MIN_WIDTH_FOR_DETAIL && (
           <Box marginLeft={1} padding={1} borderStyle="single" borderColor={theme.colors.warning}>
             <Text color={theme.colors.warning}>
               Terminal too narrow for detail panel (need {MIN_WIDTH_FOR_DETAIL} cols)
@@ -258,26 +286,15 @@ function KanbanView() {
 export function Board() {
   const viewMode = useBeadsStore(state => state.viewMode);
   const showHelp = useBeadsStore(state => state.showHelp);
-  const data = useBeadsStore(state => state.data);
   const terminalWidth = useBeadsStore(state => state.terminalWidth);
   const terminalHeight = useBeadsStore(state => state.terminalHeight);
   const returnToPreviousView = useBeadsStore(state => state.returnToPreviousView);
   const reloadCallback = useBeadsStore(state => state.reloadCallback);
   const getSelectedIssue = useBeadsStore(state => state.getSelectedIssue);
-  const getFilteredIssues = useBeadsStore(state => state.getFilteredIssues);
-  const searchQuery = useBeadsStore(state => state.searchQuery);
-  const filter = useBeadsStore(state => state.filter);
   const currentTheme = useBeadsStore(state => state.currentTheme);
   const theme = getTheme(currentTheme);
 
   const selectedIssue = getSelectedIssue();
-
-  // Get filtered issues for stats view
-  const filteredIssues = useMemo(() => {
-    const filtersActive = hasActiveFilters(filter, searchQuery);
-    if (!filtersActive) return data.issues;
-    return getFilteredIssues();
-  }, [data, filter, searchQuery, getFilteredIssues]);
 
   // Check minimum terminal width
   if (terminalWidth < LAYOUT.minTerminalWidth) {
@@ -301,22 +318,6 @@ export function Board() {
     <Box flexDirection="column" width={terminalWidth} height={terminalHeight}>
       {/* Render view based on mode */}
       {viewMode === 'kanban' && <KanbanView />}
-      {viewMode === 'tree' && <TreeView data={data} terminalHeight={terminalHeight} />}
-      {viewMode === 'graph' && (
-        <DependencyGraph
-          data={data}
-          terminalWidth={terminalWidth}
-          terminalHeight={terminalHeight}
-        />
-      )}
-      {viewMode === 'stats' && (
-        <StatsView
-          issues={filteredIssues}
-          totalIssues={data.issues.length}
-          terminalWidth={terminalWidth}
-          terminalHeight={terminalHeight}
-        />
-      )}
       {viewMode === 'create-issue' && (
         <CreateIssueForm
           onClose={returnToPreviousView}
@@ -334,12 +335,21 @@ export function Board() {
           }}
         />
       )}
+      {viewMode === 'total-list' && (
+        <TotalListView
+          terminalWidth={terminalWidth}
+          terminalHeight={terminalHeight}
+        />
+      )}
 
       {/* Help overlay - shared across all views */}
       {showHelp && <HelpOverlay />}
 
       {/* Confirm dialog - shared across all views */}
       <ConfirmDialog />
+
+      {/* Toast message - shared across all views, rendered last to appear on top */}
+      <Toast />
     </Box>
   );
 }

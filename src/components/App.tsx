@@ -6,6 +6,7 @@ import { FullDetailPanel } from './FullDetailPanel';
 import { BeadsWatcher } from '../bd/watcher';
 import { loadBeads, findBeadsDir } from '../bd/parser';
 import { getTheme } from '../themes/themes';
+import { copyToClipboard } from '../utils/export';
 
 export function App() {
   const { exit } = useApp();
@@ -13,6 +14,7 @@ export function App() {
   const setData = useBeadsStore(state => state.setData);
   const setTerminalSize = useBeadsStore(state => state.setTerminalSize);
   const setReloadCallback = useBeadsStore(state => state.setReloadCallback);
+  const initSettings = useBeadsStore(state => state.initSettings);
   const currentTheme = useBeadsStore(state => state.currentTheme);
   const theme = getTheme(currentTheme);
   const [beadsPath, setBeadsPath] = useState<string | null>(null);
@@ -51,6 +53,9 @@ export function App() {
         }
 
         setBeadsPath(path);
+
+        // Load UI settings from .beads/ui-settings.json
+        initSettings(path);
 
         // Load initial data
         const data = await loadBeads(path);
@@ -101,10 +106,12 @@ export function App() {
   const toggleJumpToPage = useBeadsStore(state => state.toggleJumpToPage);
   const navigateToCreateIssue = useBeadsStore(state => state.navigateToCreateIssue);
   const navigateToEditIssue = useBeadsStore(state => state.navigateToEditIssue);
+  const navigateToTotalList = useBeadsStore(state => state.navigateToTotalList);
   const returnToPreviousView = useBeadsStore(state => state.returnToPreviousView);
   const toggleExportDialog = useBeadsStore(state => state.toggleExportDialog);
   const toggleThemeSelector = useBeadsStore(state => state.toggleThemeSelector);
   const toggleBlockedColumn = useBeadsStore(state => state.toggleBlockedColumn);
+  const toggleParentsOnly = useBeadsStore(state => state.toggleParentsOnly);
   const toggleFullDetail = useBeadsStore(state => state.toggleFullDetail);
   const pushFullDetail = useBeadsStore(state => state.pushFullDetail);
   const popFullDetail = useBeadsStore(state => state.popFullDetail);
@@ -117,7 +124,6 @@ export function App() {
   const getSelectedIssue = useBeadsStore(state => state.getSelectedIssue);
   const data = useBeadsStore(state => state.data);
   const clearFilters = useBeadsStore(state => state.clearFilters);
-  const setViewMode = useBeadsStore(state => state.setViewMode);
   const viewMode = useBeadsStore(state => state.viewMode);
   const showSearch = useBeadsStore(state => state.showSearch);
   const showFilter = useBeadsStore(state => state.showFilter);
@@ -146,9 +152,10 @@ export function App() {
       exit();
     }
 
-    // Always allow help
-    if (input === '?') {
+    // Help
+    if (input === 'h' || input === '?') {
       toggleHelp();
+      return;
     }
 
     // If in form view, allow ESC to return to previous view
@@ -157,6 +164,11 @@ export function App() {
         returnToPreviousView();
       }
       // Let form components handle all other input
+      return;
+    }
+
+    // Let total-list view handle its own input
+    if (viewMode === 'total-list') {
       return;
     }
 
@@ -171,6 +183,18 @@ export function App() {
         popFullDetail();
         return;
       }
+      // Copy issue title and ID to clipboard
+      if (input === 'i') {
+        const currentId = fullDetailStack[fullDetailStack.length - 1];
+        const currentIssue = data.byId.get(currentId);
+        if (currentIssue) {
+          const copyText = `${currentIssue.title} - ${currentIssue.id}`;
+          copyToClipboard(copyText)
+            .then(() => showToast(`Copied: ${currentIssue.id}`, 'success'))
+            .catch((err) => showToast(`Copy failed: ${err.message}`, 'error'));
+        }
+        return;
+      }
       if (key.return) {
         // Enter on a subtask opens its detail view
         const currentId = fullDetailStack[fullDetailStack.length - 1];
@@ -183,12 +207,27 @@ export function App() {
         }
         return;
       }
-      if (key.upArrow || input === 'k') {
+      if (key.upArrow) {
         moveFullDetailUp();
         return;
       }
-      if (key.downArrow || input === 'j') {
+      if (key.downArrow) {
         moveFullDetailDown();
+        return;
+      }
+      // Tab switches between description and subtasks
+      if (key.tab) {
+        const currentId = fullDetailStack[fullDetailStack.length - 1];
+        const currentIssue = data.byId.get(currentId);
+        const hasSubtasks = currentIssue?.children && currentIssue.children.length > 0;
+        if (hasSubtasks) {
+          // Toggle between description (-1) and first subtask (0)
+          if (fullDetailSelectedSubtask === -1) {
+            useBeadsStore.setState({ fullDetailSelectedSubtask: 0 });
+          } else {
+            useBeadsStore.setState({ fullDetailSelectedSubtask: -1 });
+          }
+        }
         return;
       }
       // Block other inputs in full detail mode
@@ -227,22 +266,30 @@ export function App() {
       return;
     }
 
-    // Clear filters
-    if (input === 'c') {
+    // Copy issue title and ID to clipboard (kanban only - tree/graph handle their own)
+    if (input === 'i' && viewMode === 'kanban') {
+      const issue = getSelectedIssue();
+      if (issue) {
+        const copyText = `${issue.title} - ${issue.id}`;
+        copyToClipboard(copyText)
+          .then(() => showToast(`Copied: ${issue.id}`, 'success'))
+          .catch((err) => showToast(`Copy failed: ${err.message}`, 'error'));
+      } else {
+        showToast('No issue selected', 'info');
+      }
+      return;
+    }
+
+    // Clear filters (Shift+C)
+    if (input === 'C') {
       clearFilters();
       showToast('Filters cleared', 'info');
       return;
     }
 
-    // Command bar (: or g)
-    if (input === ':' || input === 'g') {
+    // Command bar
+    if (input === ':') {
       toggleJumpToPage();
-      return;
-    }
-
-    // Jump to first (Home or gg)
-    if (input === 'G') {
-      jumpToLast();
       return;
     }
 
@@ -270,9 +317,24 @@ export function App() {
       return;
     }
 
-    // Toggle blocked column (kanban view only)
+    // Total list view (Shift+T)
+    if (input === 'T') {
+      navigateToTotalList();
+      return;
+    }
+
+    // Toggle blocked column visibility (stacked with in_progress when shown)
     if (input === 'b' && viewMode === 'kanban') {
       toggleBlockedColumn();
+      return;
+    }
+
+    // Toggle parents only filter (show only root-level issues)
+    if (input === 'p' && viewMode === 'kanban') {
+      const currentParentsOnly = useBeadsStore.getState().filter.parentsOnly;
+      toggleParentsOnly();
+      // Show toast with NEW state (opposite of current)
+      showToast(!currentParentsOnly ? 'Showing root items only' : 'Showing all items', 'info');
       return;
     }
 
@@ -294,42 +356,18 @@ export function App() {
       toggleNotifications();
     }
 
-    // View switching
-    if (input === '1') {
-      setViewMode('kanban');
-    }
-    if (input === '2') {
-      setViewMode('tree');
-    }
-    if (input === '3') {
-      setViewMode('graph');
-    }
-    if (input === '4') {
-      setViewMode('stats');
-    }
-
-    // Navigation - Arrow keys and vim keys
-    if (key.upArrow || input === 'k') {
+    // Navigation - Arrow keys only
+    if (key.upArrow) {
       moveUp();
     }
-    if (key.downArrow || input === 'j') {
+    if (key.downArrow) {
       moveDown();
     }
-    if (key.leftArrow || input === 'h') {
+    if (key.leftArrow) {
       moveLeft();
     }
-    if (key.rightArrow || input === 'l') {
+    if (key.rightArrow) {
       moveRight();
-    }
-
-    // Home/End for first/last
-    // Note: Ink doesn't have built-in home/end key detection,
-    // so we use 0 and $ as vim alternatives
-    if (input === '0') {
-      jumpToFirst();
-    }
-    if (input === '$') {
-      jumpToLast();
     }
   });
 

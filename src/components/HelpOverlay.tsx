@@ -28,71 +28,58 @@ export function HelpOverlay() {
 
         <Box flexDirection="column" gap={0}>
           <Text bold color={theme.colors.warning}>Navigation:</Text>
-          <Text>  <Text color={theme.colors.primary}>left/right / h/l</Text>  Move between columns</Text>
-          <Text>  <Text color={theme.colors.primary}>up/down / k/j</Text>    Move up/down in column</Text>
-          <Text>  <Text color={theme.colors.primary}>0</Text>               Jump to first issue</Text>
-          <Text>  <Text color={theme.colors.primary}>$ or G</Text>          Jump to last issue</Text>
-          <Text>  <Text color={theme.colors.primary}>: or g</Text>          Open command bar</Text>
+          <Text>  <Text color={theme.colors.primary}>↑↓</Text>              Move up/down in column</Text>
+          <Text>  <Text color={theme.colors.primary}>←→</Text>              Move between columns</Text>
         </Box>
 
         <Box flexDirection="column" gap={0} marginTop={1}>
-          <Text bold color={theme.colors.warning}>Views:</Text>
-          <Text>  <Text color={theme.colors.primary}>1</Text>              Kanban board view</Text>
-          <Text>  <Text color={theme.colors.primary}>2</Text>              Tree view (hierarchical)</Text>
-          <Text>  <Text color={theme.colors.primary}>3</Text>              Dependency graph (ASCII art)</Text>
-          <Text>  <Text color={theme.colors.primary}>4</Text>              Statistics & analytics dashboard</Text>
-        </Box>
-
-        <Box flexDirection="column" gap={0} marginTop={1}>
-          <Text bold color={theme.colors.warning}>Search & Filter:</Text>
-          <Text>  <Text color={theme.colors.primary}>/</Text>              Open search</Text>
-          <Text>  <Text color={theme.colors.primary}>f</Text>              Open filter panel</Text>
-          <Text>  <Text color={theme.colors.primary}>c</Text>              Clear all filters and search</Text>
-          <Text color={theme.colors.textDim}>  (Filters apply across all views including Stats)</Text>
+          <Text bold color={theme.colors.warning}>Detail Panel:</Text>
+          <Text>  <Text color={theme.colors.primary}>Space</Text>           Toggle detail panel</Text>
+          <Text>  <Text color={theme.colors.primary}>Enter</Text>           Open full detail view</Text>
+          <Text>  <Text color={theme.colors.primary}>ESC</Text>             Close full detail / go back</Text>
+          <Text>  <Text color={theme.colors.primary}>Tab</Text>             Switch description / subtasks</Text>
         </Box>
 
         <Box flexDirection="column" gap={0} marginTop={1}>
           <Text bold color={theme.colors.warning}>Actions:</Text>
-          <Text>  <Text color={theme.colors.primary}>N</Text>              Create new issue (Shift+N)</Text>
-          <Text>  <Text color={theme.colors.primary}>e</Text>              Edit selected issue</Text>
-          <Text>  <Text color={theme.colors.primary}>x</Text>              Export/copy selected issue</Text>
-          <Text>  <Text color={theme.colors.primary}>Enter / Space</Text>  Toggle detail panel</Text>
-          <Text>  <Text color={theme.colors.primary}>b</Text>              Toggle Blocked column (Kanban)</Text>
-          <Text>  <Text color={theme.colors.primary}>r</Text>              Refresh data</Text>
-          <Text>  <Text color={theme.colors.primary}>u</Text>              Undo (view history)</Text>
+          <Text>  <Text color={theme.colors.primary}>i</Text>               Copy issue ID to clipboard</Text>
+          <Text>  <Text color={theme.colors.primary}>N</Text>               Create new issue (Shift+N)</Text>
+          <Text>  <Text color={theme.colors.primary}>e</Text>               Edit selected issue</Text>
+          <Text>  <Text color={theme.colors.primary}>x</Text>               Export/copy selected issue</Text>
+          <Text>  <Text color={theme.colors.primary}>r</Text>               Refresh data</Text>
+        </Box>
+
+        <Box flexDirection="column" gap={0} marginTop={1}>
+          <Text bold color={theme.colors.warning}>View Options:</Text>
+          <Text>  <Text color={theme.colors.primary}>b</Text>               Toggle Blocked column</Text>
+          <Text>  <Text color={theme.colors.primary}>p</Text>               Toggle Parents only</Text>
+          <Text>  <Text color={theme.colors.primary}>T</Text>               Dashboard view (Shift+T)</Text>
+          <Text>  <Text color={theme.colors.primary}>t</Text>               Change theme</Text>
         </Box>
 
         <Box flexDirection="column" gap={0} marginTop={1}>
           <Text bold color={theme.colors.warning}>Other:</Text>
-          <Text>  <Text color={theme.colors.primary}>t</Text>              Change theme / color scheme</Text>
-          <Text>  <Text color={theme.colors.primary}>n</Text>              Toggle notifications (sound + native)</Text>
-          <Text>  <Text color={theme.colors.primary}>?</Text>              Toggle this help</Text>
-          <Text>  <Text color={theme.colors.primary}>q / Ctrl+C</Text>     Quit</Text>
+          <Text>  <Text color={theme.colors.primary}>n</Text>               Toggle notifications</Text>
+          <Text>  <Text color={theme.colors.primary}>h</Text>               Toggle this help</Text>
+          <Text>  <Text color={theme.colors.primary}>q</Text>               Quit</Text>
         </Box>
 
         <Box flexDirection="column" gap={0} marginTop={1} borderTop borderColor={theme.colors.border} paddingTop={1}>
-          <Text bold color={theme.colors.warning}>Command Bar (: or g):</Text>
+          <Text bold color={theme.colors.warning}>Command Bar (:)</Text>
           <Text>  <Text color={theme.colors.primary}>:5</Text>              Jump to page 5</Text>
-          <Text>  <Text color={theme.colors.primary}>:issue-id</Text>       Jump to issue by ID</Text>
-          <Text>  <Text color={theme.colors.primary}>:s o/i/b/c</Text>      Set status</Text>
+          <Text>  <Text color={theme.colors.primary}>:bd-xxx</Text>         Jump to issue by ID</Text>
+          <Text>  <Text color={theme.colors.primary}>:s o/i/b/c</Text>      Set status (open/in_progress/blocked/closed)</Text>
           <Text>  <Text color={theme.colors.primary}>:p 0-4</Text>          Set priority</Text>
-          <Text>  <Text color={theme.colors.primary}>:kanban/tree/graph/stats</Text>  Switch view</Text>
           <Text>  <Text color={theme.colors.primary}>:theme name</Text>     Change theme</Text>
           <Text>  <Text color={theme.colors.primary}>:new :edit :q</Text>   Create, edit, quit</Text>
         </Box>
 
         <Box flexDirection="column" gap={0} marginTop={1} borderTop borderColor={theme.colors.border} paddingTop={1}>
           <Text bold color={theme.colors.warning}>Forms:</Text>
-          <Text color={theme.colors.textDim}>  Tab / Shift+Tab   Navigate between fields</Text>
-          <Text color={theme.colors.textDim}>  up/down           Change priority/status/type</Text>
-          <Text color={theme.colors.textDim}>  Enter             Submit (with confirmation)</Text>
-          <Text color={theme.colors.textDim}>  ESC               Cancel and return</Text>
-        </Box>
-
-        <Box flexDirection="column" gap={0} marginTop={1} borderTop borderColor={theme.colors.border} paddingTop={1}>
-          <Text color={theme.colors.textDim}>Notifications alert you when:</Text>
-          <Text color={theme.colors.textDim}>  - Tasks are completed (status changes to closed)</Text>
-          <Text color={theme.colors.textDim}>  - Tasks become blocked</Text>
+          <Text color={theme.colors.textDim}>  Tab / Shift+Tab   Navigate fields</Text>
+          <Text color={theme.colors.textDim}>  ↑↓                Change priority/status/type</Text>
+          <Text color={theme.colors.textDim}>  Enter             Submit</Text>
+          <Text color={theme.colors.textDim}>  ESC               Cancel</Text>
         </Box>
 
         <Box marginTop={2} justifyContent="center">

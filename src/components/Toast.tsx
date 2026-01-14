@@ -6,6 +6,8 @@ import { getTheme } from '../themes/themes';
 export function Toast() {
   const toastMessage = useBeadsStore(state => state.toastMessage);
   const currentTheme = useBeadsStore(state => state.currentTheme);
+  const terminalWidth = useBeadsStore(state => state.terminalWidth);
+  const terminalHeight = useBeadsStore(state => state.terminalHeight);
   const theme = getTheme(currentTheme);
 
   if (!toastMessage) return null;
@@ -28,17 +30,17 @@ export function Toast() {
   return (
     <Box
       position="absolute"
-      top={0}
-      left={0}
-      right={0}
+      width="100%"
+      height="100%"
       justifyContent="center"
-      paddingX={1}
+      alignItems="center"
     >
       <Box
-        borderStyle="round"
+        borderStyle="double"
         borderColor={color}
-        paddingX={2}
-        paddingY={0}
+        paddingX={4}
+        paddingY={1}
+        backgroundColor="black"
       >
         <Text color={color} bold>
           {icon} {toastMessage.message}

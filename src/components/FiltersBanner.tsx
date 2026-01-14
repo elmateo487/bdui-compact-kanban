@@ -54,7 +54,7 @@ export function FiltersBanner() {
           <Text color={theme.colors.textDim}>/{totalCount} issues</Text>
         </Text>
         <Text dimColor>
-          (c to clear)
+          (C to clear)
         </Text>
       </Box>
     </Box>
