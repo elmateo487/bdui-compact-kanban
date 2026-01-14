@@ -18,7 +18,6 @@ import { FiltersBanner } from './FiltersBanner';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CommandBar } from './CommandBar';
 import { LAYOUT, hasActiveFilters } from '../utils/constants';
-import { Footer } from './Footer';
 import type { Issue } from '../types';
 
 function KanbanView() {
@@ -52,6 +51,7 @@ function KanbanView() {
   const filter = useBeadsStore(state => state.filter);
   const viewMode = useBeadsStore(state => state.viewMode);
   const currentTheme = useBeadsStore(state => state.currentTheme);
+  const notificationsEnabled = useBeadsStore(state => state.notificationsEnabled);
   const theme = getTheme(currentTheme);
 
   const selectedIssue = getSelectedIssue();
@@ -149,18 +149,21 @@ function KanbanView() {
   const detailPanelAvailableWidth = terminalWidth - (visualColumns * COLUMN_WIDTH) - 1;
 
   // Calculate height for stacked columns (total height minus header/footer overhead)
-  // Header: 3 lines, Footer: 2 lines, Filter banner: 4 lines if active
+  // Status bar: 1 line, Filter banner: 4 lines if active
   const stackedColumnHeight = terminalHeight - (filtersActive ? 6 : 2);
 
   return (
     <Box flexDirection="column" width={terminalWidth} height={terminalHeight}>
-      {/* Header */}
-      <Box justifyContent="space-between">
+      {/* Status Bar */}
+      <Box justifyContent="space-between" paddingX={1}>
         <Box gap={2}>
           <Text color={theme.colors.textDim}>Total: <Text color={theme.colors.text}>{stats.total}</Text></Text>
           <Text color={theme.colors.textDim}>Blocked: <Text color={theme.colors.statusBlocked}>{stats.blocked}</Text></Text>
+          <Text color={theme.colors.textDim}>(b)locked:{showBlockedColumn ? 'ON' : 'off'}</Text>
+          <Text color={notificationsEnabled ? theme.colors.success : theme.colors.textDim}>(n)otif:{notificationsEnabled ? 'ON' : 'off'}</Text>
+          <Text color={theme.colors.textDim}>(h)elp (q)uit</Text>
           {!showBothVisualColumns && (
-            <Text color={theme.colors.warning}>[narrow: WIP/Blocked hidden]</Text>
+            <Text color={theme.colors.warning}>[narrow]</Text>
           )}
         </Box>
         <Text color={theme.colors.textDim}>{terminalWidth}x{terminalHeight}</Text>
@@ -247,9 +250,6 @@ function KanbanView() {
 
       {/* Command Bar (vim-style) */}
       {showJumpToPage && <CommandBar />}
-
-      {/* Footer */}
-      <Footer currentView="kanban" />
 
       {/* Export Dialog */}
       {showExportDialog && selectedIssue && (

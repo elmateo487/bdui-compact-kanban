@@ -173,6 +173,30 @@ export function FullDetailPanel({ issue }: FullDetailPanelProps) {
         </Text>
       )}
 
+      {/* Blocking info - show when status is blocked or has blockedBy */}
+      {(issue.status === 'blocked' || (issue.blockedBy && issue.blockedBy.length > 0)) && (
+        <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor={theme.colors.statusBlocked}>
+          <Text color={theme.colors.statusBlocked} bold> ⚠ BLOCKED</Text>
+          {issue.blockedBy && issue.blockedBy.length > 0 && (
+            <Box flexDirection="column">
+              <Text color={theme.colors.textDim}> Waiting on:</Text>
+              {issue.blockedBy.map(id => {
+                const blocker = data.byId.get(id);
+                return (
+                  <Text key={id} color={theme.colors.statusBlocked}>
+                    {' '} • {blocker ? blocker.title.slice(0, 50) : id}
+                    {blocker && <Text color={theme.colors.textDim}> ({blocker.status})</Text>}
+                  </Text>
+                );
+              })}
+            </Box>
+          )}
+          {issue.status === 'blocked' && (!issue.blockedBy || issue.blockedBy.length === 0) && (
+            <Text color={theme.colors.textDim}> Needs human decision (check comments)</Text>
+          )}
+        </Box>
+      )}
+
       {/* Description - scrollable with markdown */}
       {issue.description && (
         <Box flexDirection="column" marginTop={1} borderStyle="single" borderColor={isInDescriptionMode ? theme.colors.primary : theme.colors.border}>
