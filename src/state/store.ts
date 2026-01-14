@@ -57,6 +57,8 @@ interface BeadsStore {
   fullDetailStack: string[]; // Stack of issue IDs for navigation
   fullDetailSelectionHistory: number[]; // Stack of selected subtask indices (parallel to fullDetailStack)
   fullDetailSelectedSubtask: number; // Selected subtask index (-1 means scrolling description)
+  fullDetailSection: 'description' | 'blockedBy' | 'blocks' | 'subtasks'; // Current section
+  fullDetailSectionIndex: number; // Index within current section
   fullDetailDescriptionScroll: number; // Scroll offset for description
   fullDetailDescriptionMaxScroll: number; // Max scroll value (set by component)
   fullDetailDescriptionPageSize: number; // Visible lines per page (set by component)
@@ -204,6 +206,8 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   fullDetailStack: [],
   fullDetailSelectionHistory: [],
   fullDetailSelectedSubtask: -1, // -1 means description scrolling mode
+  fullDetailSection: 'description',
+  fullDetailSectionIndex: -1,
   fullDetailDescriptionScroll: 0,
   fullDetailDescriptionMaxScroll: 0,
   fullDetailDescriptionPageSize: 10,
@@ -262,6 +266,8 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
       previousIssues: new Map(data.byId), // Clone for next comparison
       fullDetailDescriptionScroll: 0,
       fullDetailSelectedSubtask: -1,
+      fullDetailSection: 'description',
+      fullDetailSectionIndex: -1,
     });
 
     // Now validate column states against filtered data
@@ -708,7 +714,7 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
     const state = get();
     if (state.showFullDetail) {
       // Close full detail
-      set({ showFullDetail: false, fullDetailStack: [], fullDetailSelectionHistory: [], fullDetailSelectedSubtask: -1, fullDetailDescriptionScroll: 0 });
+      set({ showFullDetail: false, fullDetailStack: [], fullDetailSelectionHistory: [], fullDetailSelectedSubtask: -1, fullDetailSection: 'description', fullDetailSectionIndex: -1, fullDetailDescriptionScroll: 0 });
     } else {
       // Open full detail with current selected issue
       const selectedIssue = state.getSelectedIssue();
@@ -730,6 +736,8 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
       // Save current selection before pushing, then reset for new level
       fullDetailSelectionHistory: [...state.fullDetailSelectionHistory, state.fullDetailSelectedSubtask],
       fullDetailSelectedSubtask: -1,
+      fullDetailSection: 'description',
+      fullDetailSectionIndex: -1,
       fullDetailDescriptionScroll: 0,
     }));
   },
@@ -747,27 +755,71 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
       });
     } else {
       // Close full detail entirely
-      set({ showFullDetail: false, fullDetailStack: [], fullDetailSelectionHistory: [], fullDetailSelectedSubtask: -1, fullDetailDescriptionScroll: 0 });
+      set({ showFullDetail: false, fullDetailStack: [], fullDetailSelectionHistory: [], fullDetailSelectedSubtask: -1, fullDetailSection: 'description', fullDetailSectionIndex: -1, fullDetailDescriptionScroll: 0 });
     }
   },
 
   moveFullDetailUp: () => {
     const state = get();
-    const pageSize = Math.max(1, state.fullDetailDescriptionPageSize - 1); // Overlap by 1 line for context
+    const issue = state.getFullDetailIssue();
+    const pageSize = Math.max(1, state.fullDetailDescriptionPageSize - 1);
 
-    if (state.fullDetailSelectedSubtask >= 0) {
-      // In subtask selection mode - move up or switch to description scroll
-      if (state.fullDetailSelectedSubtask > 0) {
-        set({ fullDetailSelectedSubtask: state.fullDetailSelectedSubtask - 1 });
-      } else {
-        // At first subtask, switch back to description scrolling (jump to end)
-        set({ fullDetailSelectedSubtask: -1, fullDetailDescriptionScroll: state.fullDetailDescriptionMaxScroll });
-      }
-    } else {
-      // In description scroll mode - scroll up by page
+    const hasBlockedBy = issue?.blockedBy && issue.blockedBy.length > 0;
+    const hasBlocks = issue?.blocks && issue.blocks.length > 0;
+    const hasSubtasks = issue?.children && issue.children.length > 0;
+
+    // Section order matches visual layout: blockedBy -> blocks -> description -> subtasks
+    const sections: Array<'description' | 'blockedBy' | 'blocks' | 'subtasks'> = [];
+    if (hasBlockedBy) sections.push('blockedBy');
+    if (hasBlocks) sections.push('blocks');
+    sections.push('description');
+    if (hasSubtasks) sections.push('subtasks');
+
+    const currentSectionIdx = sections.indexOf(state.fullDetailSection);
+    const isFirstSection = currentSectionIdx === 0;
+
+    if (state.fullDetailSection === 'description') {
+      // Scroll up in description
       if (state.fullDetailDescriptionScroll > 0) {
         const newScroll = Math.max(0, state.fullDetailDescriptionScroll - pageSize);
         set({ fullDetailDescriptionScroll: newScroll });
+      } else if (!isFirstSection) {
+        // Move to previous section (blocks or blockedBy)
+        const prevSection = sections[currentSectionIdx - 1];
+        if (issue) {
+          let prevCount = 0;
+          if (prevSection === 'blockedBy' && issue.blockedBy) {
+            prevCount = issue.blockedBy.length;
+          } else if (prevSection === 'blocks' && issue.blocks) {
+            prevCount = issue.blocks.length;
+          }
+          set({ fullDetailSection: prevSection, fullDetailSectionIndex: Math.max(0, prevCount - 1) });
+        }
+      }
+    } else if (state.fullDetailSection === 'subtasks') {
+      // In subtasks section
+      if (state.fullDetailSectionIndex > 0) {
+        set({ fullDetailSectionIndex: state.fullDetailSectionIndex - 1 });
+      } else {
+        // Move to description (scroll to bottom)
+        set({ fullDetailSection: 'description', fullDetailSectionIndex: -1, fullDetailDescriptionScroll: state.fullDetailDescriptionMaxScroll });
+      }
+    } else {
+      // In blockedBy or blocks section
+      if (state.fullDetailSectionIndex > 0) {
+        set({ fullDetailSectionIndex: state.fullDetailSectionIndex - 1 });
+      } else if (!isFirstSection) {
+        // Move to previous section
+        const prevSection = sections[currentSectionIdx - 1];
+        if (issue) {
+          let prevCount = 0;
+          if (prevSection === 'blockedBy' && issue.blockedBy) {
+            prevCount = issue.blockedBy.length;
+          } else if (prevSection === 'blocks' && issue.blocks) {
+            prevCount = issue.blocks.length;
+          }
+          set({ fullDetailSection: prevSection, fullDetailSectionIndex: Math.max(0, prevCount - 1) });
+        }
       }
     }
   },
@@ -775,24 +827,58 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   moveFullDetailDown: () => {
     const state = get();
     const issue = state.getFullDetailIssue();
-    const hasSubtasks = issue?.children && issue.children.length > 0;
-    const maxSubtaskIndex = hasSubtasks ? issue.children.length - 1 : -1;
-    const pageSize = Math.max(1, state.fullDetailDescriptionPageSize - 1); // Overlap by 1 line for context
+    const pageSize = Math.max(1, state.fullDetailDescriptionPageSize - 1);
 
-    if (state.fullDetailSelectedSubtask === -1) {
-      // In description scroll mode
+    const hasBlockedBy = issue?.blockedBy && issue.blockedBy.length > 0;
+    const hasBlocks = issue?.blocks && issue.blocks.length > 0;
+    const hasSubtasks = issue?.children && issue.children.length > 0;
+
+    // Section order matches visual layout: blockedBy -> blocks -> description -> subtasks
+    const sections: Array<'description' | 'blockedBy' | 'blocks' | 'subtasks'> = [];
+    if (hasBlockedBy) sections.push('blockedBy');
+    if (hasBlocks) sections.push('blocks');
+    sections.push('description');
+    if (hasSubtasks) sections.push('subtasks');
+
+    const currentSectionIdx = sections.indexOf(state.fullDetailSection);
+    const isLastSection = currentSectionIdx === sections.length - 1;
+
+    if (state.fullDetailSection === 'description') {
+      // Scroll down in description
       if (state.fullDetailDescriptionScroll < state.fullDetailDescriptionMaxScroll) {
-        // Scroll down by page, capped at max
         const newScroll = Math.min(state.fullDetailDescriptionMaxScroll, state.fullDetailDescriptionScroll + pageSize);
         set({ fullDetailDescriptionScroll: newScroll });
-      } else if (hasSubtasks) {
-        // Description fully scrolled, switch to subtask selection
-        set({ fullDetailSelectedSubtask: 0 });
+      } else if (!isLastSection) {
+        // Move to subtasks
+        set({ fullDetailSection: 'subtasks', fullDetailSectionIndex: 0 });
+      }
+    } else if (state.fullDetailSection === 'subtasks') {
+      // In subtasks section
+      if (!issue) return;
+      const maxIndex = issue.children ? issue.children.length - 1 : -1;
+      if (maxIndex >= 0 && state.fullDetailSectionIndex < maxIndex) {
+        set({ fullDetailSectionIndex: state.fullDetailSectionIndex + 1 });
       }
     } else {
-      // In subtask selection mode - move down if possible
-      if (state.fullDetailSelectedSubtask < maxSubtaskIndex) {
-        set({ fullDetailSelectedSubtask: state.fullDetailSelectedSubtask + 1 });
+      // In blockedBy or blocks section
+      if (!issue) return;
+      let maxIndex = -1;
+      if (state.fullDetailSection === 'blockedBy' && issue.blockedBy) {
+        maxIndex = issue.blockedBy.length - 1;
+      } else if (state.fullDetailSection === 'blocks' && issue.blocks) {
+        maxIndex = issue.blocks.length - 1;
+      }
+
+      if (maxIndex >= 0 && state.fullDetailSectionIndex < maxIndex) {
+        set({ fullDetailSectionIndex: state.fullDetailSectionIndex + 1 });
+      } else if (!isLastSection) {
+        // Move to next section
+        const nextSection = sections[currentSectionIdx + 1];
+        if (nextSection === 'description') {
+          set({ fullDetailSection: 'description', fullDetailSectionIndex: -1, fullDetailDescriptionScroll: 0 });
+        } else {
+          set({ fullDetailSection: nextSection, fullDetailSectionIndex: 0 });
+        }
       }
     }
   },
@@ -806,7 +892,7 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   },
 
   resetFullDetailScroll: () => {
-    set({ fullDetailDescriptionScroll: 0, fullDetailSelectedSubtask: -1 });
+    set({ fullDetailDescriptionScroll: 0, fullDetailSelectedSubtask: -1, fullDetailSection: 'description', fullDetailSectionIndex: -1 });
   },
 
   getFullDetailIssue: () => {

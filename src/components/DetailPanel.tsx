@@ -191,12 +191,16 @@ export function DetailPanel({ issue, maxHeight, width, collapsed }: DetailPanelP
       {issue.labels && issue.labels.length > 0 && (
         <Text>
           <Text> </Text>
-          {issue.labels.map((label, i) => (
-            <Text key={label}>
-              <Text color={theme.colors.secondary}>#{label}</Text>
-              {i < issue.labels!.length - 1 && <Text color={theme.colors.textDim}> </Text>}
-            </Text>
-          ))}
+          {issue.labels.map((label, i) => {
+            const [name, value] = label.includes(':') ? label.split(':', 2) : [label, null];
+            return (
+              <Text key={label}>
+                <Text color={theme.colors.secondary}>#{name}</Text>
+                {value && <Text color={theme.colors.accent}>:{value}</Text>}
+                {i < issue.labels!.length - 1 && <Text color={theme.colors.textDim}> </Text>}
+              </Text>
+            );
+          })}
         </Text>
       )}
 
@@ -207,34 +211,34 @@ export function DetailPanel({ issue, maxHeight, width, collapsed }: DetailPanelP
 
       {/* Blocking info - show when status is blocked or has blockedBy */}
       {(issue.status === 'blocked' || (issue.blockedBy && issue.blockedBy.length > 0)) && (
-        <Box flexDirection="column" borderStyle="single" borderColor={theme.colors.statusBlocked}>
-          <Text color={theme.colors.statusBlocked} bold> ⚠ BLOCKED</Text>
-          {issue.blockedBy && issue.blockedBy.length > 0 && (
-            <Box flexDirection="column">
-              <Text color={theme.colors.textDim}> Waiting on:</Text>
-              {issue.blockedBy.map(id => {
-                const blocker = data.byId.get(id);
-                return (
-                  <Text key={id} color={theme.colors.statusBlocked}>
-                    {' '} • {blocker ? blocker.title.slice(0, 30) : id}
-                    {blocker && <Text color={theme.colors.textDim}> ({blocker.status})</Text>}
-                  </Text>
-                );
-              })}
-            </Box>
-          )}
-          {issue.status === 'blocked' && (!issue.blockedBy || issue.blockedBy.length === 0) && (
-            <Text color={theme.colors.textDim}> Needs human decision (check comments)</Text>
+        <Box flexDirection="column">
+          <Text color={theme.colors.statusBlocked} bold> Blocked By:</Text>
+          {issue.blockedBy && issue.blockedBy.length > 0 ? issue.blockedBy.map(id => {
+            const blocker = data.byId.get(id);
+            return (
+              <Text key={id} color={theme.colors.statusBlocked}>
+                {'  '}• {blocker ? blocker.title.slice(0, 30) : id}
+                {blocker && <Text color={theme.colors.textDim}> ({blocker.status})</Text>}
+              </Text>
+            );
+          }) : (
+            <Text color={theme.colors.textDim}>{'  '}Needs human decision (check comments)</Text>
           )}
         </Box>
       )}
 
       {issue.blocks && issue.blocks.length > 0 && (
         <Box flexDirection="column">
-          <Text color={theme.colors.textDim}> Blocks:</Text>
-          {issue.blocks.map(id => (
-            <Text key={id} color={theme.colors.textDim}>   - {id}</Text>
-          ))}
+          <Text color={theme.colors.statusBlocked} bold> Blocks:</Text>
+          {issue.blocks.map(id => {
+            const blocked = data.byId.get(id);
+            return (
+              <Text key={id} color={theme.colors.statusBlocked}>
+                {'  '}• {blocked ? blocked.title.slice(0, 30) : id}
+                {blocked && <Text color={theme.colors.textDim}> ({blocked.status})</Text>}
+              </Text>
+            );
+          })}
         </Box>
       )}
 

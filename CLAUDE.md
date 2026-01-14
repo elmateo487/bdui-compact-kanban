@@ -34,6 +34,8 @@ bun run build:linux   # x64 only
 bun run build:windows # x64 only
 ```
 
+**Important**: Always run `bun run build` after making changes to rebuild the binary.
+
 ## Architecture
 
 ### Data Flow

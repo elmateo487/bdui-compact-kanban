@@ -120,6 +120,8 @@ export function App() {
   const moveFullDetailDown = useBeadsStore(state => state.moveFullDetailDown);
   const fullDetailStack = useBeadsStore(state => state.fullDetailStack);
   const fullDetailSelectedSubtask = useBeadsStore(state => state.fullDetailSelectedSubtask);
+  const fullDetailSection = useBeadsStore(state => state.fullDetailSection);
+  const fullDetailSectionIndex = useBeadsStore(state => state.fullDetailSectionIndex);
   const showFullDetail = useBeadsStore(state => state.showFullDetail);
   const showDetails = useBeadsStore(state => state.showDetails);
   const getSelectedIssue = useBeadsStore(state => state.getSelectedIssue);
@@ -198,14 +200,22 @@ export function App() {
         return;
       }
       if (key.return) {
-        // Enter on a subtask opens its detail view
+        // Enter opens detail view for selected item in any section
         const currentId = fullDetailStack[fullDetailStack.length - 1];
         const currentIssue = data.byId.get(currentId);
-        if (currentIssue?.children && currentIssue.children.length > 0) {
-          const selectedChildId = currentIssue.children[fullDetailSelectedSubtask];
-          if (selectedChildId) {
-            pushFullDetail(selectedChildId);
-          }
+        if (!currentIssue) return;
+
+        let targetId: string | undefined;
+        if (fullDetailSection === 'blockedBy' && currentIssue.blockedBy) {
+          targetId = currentIssue.blockedBy[fullDetailSectionIndex];
+        } else if (fullDetailSection === 'blocks' && currentIssue.blocks) {
+          targetId = currentIssue.blocks[fullDetailSectionIndex];
+        } else if (fullDetailSection === 'subtasks' && currentIssue.children) {
+          targetId = currentIssue.children[fullDetailSectionIndex];
+        }
+
+        if (targetId) {
+          pushFullDetail(targetId);
         }
         return;
       }
@@ -217,19 +227,32 @@ export function App() {
         moveFullDetailDown();
         return;
       }
-      // Tab switches between description and subtasks
+      // Tab cycles through available sections (visual order: blockedBy -> blocks -> description -> subtasks)
       if (key.tab) {
         const currentId = fullDetailStack[fullDetailStack.length - 1];
         const currentIssue = data.byId.get(currentId);
-        const hasSubtasks = currentIssue?.children && currentIssue.children.length > 0;
-        if (hasSubtasks) {
-          // Toggle between description (-1) and first subtask (0)
-          if (fullDetailSelectedSubtask === -1) {
-            useBeadsStore.setState({ fullDetailSelectedSubtask: 0 });
-          } else {
-            useBeadsStore.setState({ fullDetailSelectedSubtask: -1 });
-          }
-        }
+        if (!currentIssue) return;
+
+        const hasBlockedBy = currentIssue.blockedBy && currentIssue.blockedBy.length > 0;
+        const hasBlocks = currentIssue.blocks && currentIssue.blocks.length > 0;
+        const hasSubtasks = currentIssue.children && currentIssue.children.length > 0;
+
+        // Build section order matching visual layout
+        const sections: Array<'description' | 'blockedBy' | 'blocks' | 'subtasks'> = [];
+        if (hasBlockedBy) sections.push('blockedBy');
+        if (hasBlocks) sections.push('blocks');
+        sections.push('description');
+        if (hasSubtasks) sections.push('subtasks');
+
+        const currentIdx = sections.indexOf(fullDetailSection);
+        const nextIdx = (currentIdx + 1) % sections.length;
+        const nextSection = sections[nextIdx];
+
+        useBeadsStore.setState({
+          fullDetailSection: nextSection,
+          fullDetailSectionIndex: nextSection === 'description' ? -1 : 0,
+          fullDetailDescriptionScroll: 0,
+        });
         return;
       }
       // Block other inputs in full detail mode
