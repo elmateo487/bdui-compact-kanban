@@ -159,8 +159,8 @@ function KanbanView() {
         <Box gap={2}>
           <Text color={theme.colors.textDim}>Total: <Text color={theme.colors.text}>{stats.total}</Text></Text>
           <Text color={theme.colors.textDim}>Blocked: <Text color={theme.colors.statusBlocked}>{stats.blocked}</Text></Text>
-          <Text color={theme.colors.textDim}>(b)locked:{showBlockedColumn ? 'ON' : 'off'}</Text>
-          <Text color={notificationsEnabled ? theme.colors.success : theme.colors.textDim}>(n)otif:{notificationsEnabled ? 'ON' : 'off'}</Text>
+          <Text color={theme.colors.textDim}>(b)locked:<Text color={showBlockedColumn ? theme.colors.success : theme.colors.textDim}>{showBlockedColumn ? 'ON' : 'off'}</Text></Text>
+          <Text color={theme.colors.textDim}>(n)otif:<Text color={notificationsEnabled ? theme.colors.success : theme.colors.textDim}>{notificationsEnabled ? 'ON' : 'off'}</Text></Text>
           <Text color={theme.colors.textDim}>(h)elp (q)uit</Text>
           {!showBothVisualColumns && (
             <Text color={theme.colors.warning}>[narrow]</Text>
