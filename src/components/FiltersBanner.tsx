@@ -38,7 +38,6 @@ export function FiltersBanner() {
   return (
     <Box
       paddingX={1}
-      marginBottom={1}
       borderStyle="single"
       borderColor={theme.colors.warning}
     >

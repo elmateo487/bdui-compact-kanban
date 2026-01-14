@@ -149,8 +149,8 @@ function KanbanView() {
   const detailPanelAvailableWidth = terminalWidth - (visualColumns * COLUMN_WIDTH) - 1;
 
   // Calculate height for stacked columns (total height minus header/footer overhead)
-  // Status bar: 1 line, Filter banner: 4 lines if active
-  const stackedColumnHeight = terminalHeight - (filtersActive ? 6 : 2);
+  // Status bar: 1 line, Filter banner: 3 lines if active
+  const stackedColumnHeight = terminalHeight - (filtersActive ? 4 : 1);
 
   return (
     <Box flexDirection="column" width={terminalWidth} height={terminalHeight}>
@@ -230,10 +230,9 @@ function KanbanView() {
         {/* Detail panel - always show when terminal wide enough */}
         {terminalWidth >= MIN_WIDTH_FOR_DETAIL && (
           <Box marginLeft={1} flexGrow={1} overflow="hidden">
-            {/* Overhead: header(2) + footer with border(3) = 5, plus filter banner(4) if active */}
             <DetailPanel
               issue={selectedIssue}
-              maxHeight={terminalHeight - (filtersActive ? 6 : 2)}
+              maxHeight={terminalHeight - (filtersActive ? 4 : 1)}
               width={detailPanelAvailableWidth}
               collapsed={!showDetails}
             />
