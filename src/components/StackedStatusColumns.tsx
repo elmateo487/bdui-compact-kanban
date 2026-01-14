@@ -15,6 +15,7 @@ interface StackedColumnProps {
   itemsPerPage: number;
   statusKey: string;
   height: number;
+  width: number;
 }
 
 function MiniStatusColumn({
@@ -26,6 +27,7 @@ function MiniStatusColumn({
   itemsPerPage,
   statusKey,
   height,
+  width,
 }: StackedColumnProps) {
   const currentTheme = useBeadsStore(state => state.currentTheme);
   const theme = getTheme(currentTheme);
@@ -79,6 +81,7 @@ function MiniStatusColumn({
                 key={issue.id}
                 issue={issue}
                 isSelected={isSelected}
+                width={width}
               />
             );
           })
@@ -112,6 +115,7 @@ interface StackedStatusColumnsProps {
   bottomStatusKey: string;
   totalHeight: number;
   itemsPerPage: number;
+  width?: number;
 }
 
 export function StackedStatusColumns({
@@ -129,6 +133,7 @@ export function StackedStatusColumns({
   bottomStatusKey,
   totalHeight,
   itemsPerPage,
+  width = LAYOUT.columnWidth,
 }: StackedStatusColumnsProps) {
   // Split height equally between top and bottom, accounting for headers
   const halfHeight = Math.floor(totalHeight / 2);
@@ -136,7 +141,7 @@ export function StackedStatusColumns({
   const stackedItemsPerPage = Math.max(1, Math.floor(itemsPerPage / 2) - 1);
 
   return (
-    <Box flexDirection="column" width={LAYOUT.columnWidth} height={totalHeight}>
+    <Box flexDirection="column" width={width} height={totalHeight}>
       <MiniStatusColumn
         title={topTitle}
         issues={topIssues}
@@ -146,6 +151,7 @@ export function StackedStatusColumns({
         itemsPerPage={stackedItemsPerPage}
         statusKey={topStatusKey}
         height={halfHeight}
+        width={width}
       />
       <MiniStatusColumn
         title={bottomTitle}
@@ -156,6 +162,7 @@ export function StackedStatusColumns({
         itemsPerPage={stackedItemsPerPage}
         statusKey={bottomStatusKey}
         height={halfHeight}
+        width={width}
       />
     </Box>
   );

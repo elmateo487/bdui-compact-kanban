@@ -130,16 +130,22 @@ function KanbanView() {
   const visualColumns = 2; // Open + InProgress (with optional Blocked stacked)
 
   // Responsive layout calculations
-  const COLUMN_WIDTH = LAYOUT.columnWidth;
+  const BASE_COLUMN_WIDTH = LAYOUT.columnWidth;
   const DETAIL_PANEL_WIDTH = LAYOUT.detailPanelWidth;
-  const MIN_WIDTH_FOR_DETAIL = COLUMN_WIDTH * visualColumns + DETAIL_PANEL_WIDTH + 10;
-  const MIN_WIDTH_FOR_ALL_COLUMNS = COLUMN_WIDTH * visualColumns + 10;
+  const MIN_WIDTH_FOR_DETAIL = BASE_COLUMN_WIDTH * visualColumns + DETAIL_PANEL_WIDTH + 10;
+  const MIN_WIDTH_FOR_ALL_COLUMNS = BASE_COLUMN_WIDTH * visualColumns + 10;
 
   // Auto-hide detail panel on narrow screens
-  const shouldShowDetails = showDetails && terminalWidth >= MIN_WIDTH_FOR_DETAIL;
+  const canShowDetailPanel = terminalWidth >= MIN_WIDTH_FOR_DETAIL;
+  const shouldShowDetails = showDetails && canShowDetailPanel;
 
   // With stacked layout, we always show both visual columns if possible
   const showBothVisualColumns = terminalWidth >= MIN_WIDTH_FOR_ALL_COLUMNS;
+
+  // Calculate dynamic column width - expand to fill space when detail panel hidden
+  const columnWidth = canShowDetailPanel
+    ? BASE_COLUMN_WIDTH
+    : Math.floor((terminalWidth - 2) / visualColumns); // -2 for padding
 
   // Update store with visible column count for navigation
   // maxColumns is the logical count (for keyboard navigation)
@@ -148,7 +154,7 @@ function KanbanView() {
   }, [maxColumns, setVisibleColumnCount]);
 
   // Calculate available width for detail panel
-  const detailPanelAvailableWidth = terminalWidth - (visualColumns * COLUMN_WIDTH) - 1;
+  const detailPanelAvailableWidth = terminalWidth - (visualColumns * columnWidth) - 1;
 
   // Calculate height for stacked columns (total height minus status bar)
   const stackedColumnHeight = terminalHeight - 1;
@@ -186,6 +192,7 @@ function KanbanView() {
             scrollOffset={columnStates['open'].scrollOffset}
             itemsPerPage={itemsPerPage}
             statusKey="open"
+            width={columnWidth}
           />
 
           {/* In Progress column - full height when blocked hidden, stacked when shown */}
@@ -198,6 +205,7 @@ function KanbanView() {
               scrollOffset={columnStates['in_progress'].scrollOffset}
               itemsPerPage={itemsPerPage}
               statusKey="in_progress"
+              width={columnWidth}
             />
           )}
 
@@ -218,6 +226,7 @@ function KanbanView() {
               bottomStatusKey="blocked"
               totalHeight={stackedColumnHeight}
               itemsPerPage={itemsPerPage}
+              width={columnWidth}
             />
           )}
         </Box>

@@ -12,9 +12,10 @@ import {
 interface IssueCardProps {
   issue: Issue;
   isSelected?: boolean;
+  width?: number;
 }
 
-export function IssueCard({ issue, isSelected = false }: IssueCardProps) {
+export function IssueCard({ issue, isSelected = false, width = LAYOUT.columnWidth }: IssueCardProps) {
   const currentTheme = useBeadsStore(state => state.currentTheme);
   const theme = getTheme(currentTheme);
 
@@ -46,15 +47,15 @@ export function IssueCard({ issue, isSelected = false }: IssueCardProps) {
       borderColor={isSelected ? '#FFA500' : theme.colors.border}
       paddingX={0}
       flexDirection="column"
-      width={LAYOUT.columnWidth}
+      width={width}
     >
       {/* Title - up to 2 lines */}
       <Text bold color={isSelected ? theme.colors.primary : theme.colors.text} wrap="truncate">
-        {issue.title.slice(0, LAYOUT.columnWidth - 2)}
+        {issue.title.slice(0, width - 2)}
       </Text>
-      {issue.title.length > LAYOUT.columnWidth - 2 && (
+      {issue.title.length > width - 2 && (
         <Text bold color={isSelected ? theme.colors.primary : theme.colors.text} wrap="truncate">
-          {issue.title.slice(LAYOUT.columnWidth - 2, (LAYOUT.columnWidth - 2) * 2)}
+          {issue.title.slice(width - 2, (width - 2) * 2)}
         </Text>
       )}
 
