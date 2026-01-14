@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-BD TUI is a real-time Text User Interface visualizer for the [bd (beads)](https://github.com/steveyegge/beads) issue tracker. It provides multiple views (Kanban, Tree, Dependency Graph) of issues stored in a SQLite database, with real-time file watching, search/filter capabilities, and native notifications.
+BD TUI is a real-time Text User Interface visualizer for the [bd (beads)](https://github.com/steveyegge/beads) issue tracker. It provides a Kanban board view with stacked status columns, plus a dashboard view for issue categorization and diagnostics. Features include real-time file watching, search/filter capabilities, vim-style command bar, and native notifications.
 
 **Runtime**: Bun (required - uses `bun:sqlite` and Bun's native APIs)
 **UI Framework**: Ink (React for CLIs)
@@ -62,8 +62,8 @@ bun run build:windows # x64 only
      - `data: BeadsData` - current issue data from database
      - `previousIssues: Map<string, Issue>` - for detecting status changes (notifications)
      - `columnStates: Record<StatusKey, ColumnState>` - **per-column independent pagination/selection**
-     - `viewMode` - kanban | tree | graph | stats
-     - `filter` - assignee, tags, priority, status filters
+     - `viewMode` - kanban | total-list | create-issue | edit-issue
+     - `filter` - assignee, tags, priority, status, parentsOnly filters
      - `searchQuery` - text search across title, description, ID
      - `currentTheme` - active color scheme (default, ocean, forest, sunset, monochrome)
      - UI modal states - `showSearch`, `showFilter`, `showCreateForm`, `showEditForm`, `showExportDialog`, `showThemeSelector`
@@ -72,21 +72,20 @@ bun run build:windows # x64 only
 
 4. **Component Hierarchy**
    ```
-   App.tsx (root - keyboard handling, watcher setup)
+   App.tsx (root - keyboard handling, watcher setup, command bar)
    └── Board.tsx (view router)
-       ├── KanbanView (default view, keyboard: 1)
+       ├── KanbanView (default view)
        │   ├── SearchInput (when showSearch=true, keyboard: /)
        │   ├── FilterPanel (when showFilter=true, keyboard: f)
        │   ├── CreateIssueForm (when showCreateForm=true, keyboard: N)
        │   ├── EditIssueForm (when showEditForm=true, keyboard: e)
        │   ├── ExportDialog (when showExportDialog=true, keyboard: x)
        │   ├── ThemeSelector (when showThemeSelector=true, keyboard: t)
-       │   ├── StatusColumn × 4 (responsive, may hide columns on narrow screens)
-       │   │   └── IssueCard × N (paginated)
-       │   └── DetailPanel (when showDetails=true, keyboard: Space/Enter)
-       ├── TreeView (hierarchical parent-child view, keyboard: 2)
-       ├── DependencyGraph (ASCII art graph, keyboard: 3)
-       ├── StatsView (analytics dashboard, keyboard: 4)
+       │   ├── StackedStatusColumns (2 visual columns: Open + In Progress/Blocked stacked)
+       │   │   └── IssueCard × N (paginated per column)
+       │   ├── DetailPanel (when showDetails=true, keyboard: Space)
+       │   └── FullDetailPanel (when Enter pressed, full-screen detail view)
+       ├── TotalListView (dashboard with issue categorization, keyboard: T)
        └── HelpOverlay (keyboard: ?)
    ```
 
@@ -101,7 +100,7 @@ This allows each column to have different lengths (e.g., 10 open issues, 50 clos
 ### Input Handling Modes
 
 The app has **modal input handling** in `App.tsx`:
-- **Normal mode**: Arrow keys, vim keys (hjkl), view switching (1-4), help (?), etc.
+- **Normal mode**: Arrow keys, vim keys (hjkl), command bar (:), help (?), etc.
 - **Modal overlays**: When any of these are active, they capture input and ESC closes them:
   - Search mode (`showSearch=true`) - SearchInput captures input
   - Filter mode (`showFilter=true`) - FilterPanel captures input
@@ -181,11 +180,13 @@ Export targets:
 
 ### Responsive Layout
 
-Kanban view adapts to terminal size:
+Kanban view uses a **stacked 2-column layout**:
 - `terminalWidth`/`terminalHeight` tracked in store via stdout resize events
-- `itemsPerPage` calculated dynamically based on height (accounting for ~17 lines of UI overhead, 8 lines per issue card)
-- Column visibility: 4 cols (≥160 width), 2 cols (80-159 width), 1 col (<80 width)
-- Detail panel auto-hides below 160 width (requires 4*37 + 55 + 10 = 213 cols ideally)
+- `itemsPerPage` calculated dynamically based on height
+- **Visual columns**: Open (left) + In Progress/Blocked stacked (right)
+- **Logical columns**: 2 or 3 depending on whether Blocked column is shown (toggle with `b`)
+- Detail panel auto-hides on narrow screens
+- Stacked columns share vertical space, allowing more issues visible at once
 
 ### Notifications
 
@@ -203,18 +204,18 @@ Uses `node-notifier` for cross-platform desktop notifications:
 
 ## Component Guidelines
 
+- **StackedStatusColumns**: Renders Open and In Progress columns side by side, with optional Blocked column stacked under In Progress
 - **StatusColumn**: Receives issues array, renders visible slice based on `scrollOffset` and `itemsPerPage`
-- **IssueCard**: Pure presentation component, shows priority (colored P0-P4), type, title, labels
-- **DetailPanel**: Shows full issue details including dependencies (blockedBy, blocks, parent, children)
+- **IssueCard**: Pure presentation component, shows priority (colored P0-P4), type, title, labels, subtask counts
+- **DetailPanel**: Shows issue details in sidebar including dependencies (blockedBy, blocks, parent, children)
+- **FullDetailPanel**: Full-screen detail view with markdown rendering, subtask list, and Tab to switch sections
+- **TotalListView**: Dashboard view categorizing issues (epics, tickets) with diagnostics for orphaned ACs, missing parents
 - **SearchInput**: Modal input component, uses `useInput` hook, ESC to close, real-time filtering
 - **FilterPanel**: Complex modal with Tab navigation between filter types, Space/Enter to toggle selections
 - **CreateIssueForm**: Modal form for creating issues, Tab navigation between fields, calls `createIssue()` from commands.ts
 - **EditIssueForm**: Modal form for editing issues, pre-populated with current values, calls `updateIssue()` from commands.ts
 - **ExportDialog**: Modal for exporting issues, arrow keys to select format/action, uses clipboard or file system
 - **ThemeSelector**: Modal for changing themes, shows live preview, up/down to select, Enter to apply
-- **TreeView**: Hierarchical view, shows parent-child relationships, expandable tree structure
-- **DependencyGraph**: ASCII art visualization, shows blocking relationships and dependency levels
-- **StatsView**: Analytics dashboard with bar charts for status/priority/type distribution, top assignees/labels
 
 ## Bun-Specific Code
 

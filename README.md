@@ -10,17 +10,16 @@ A beautiful, real-time Text User Interface (TUI) visualizer for the [bd (beads)]
 
 ## ✨ Features
 
-### 📊 Multiple Visualizations
-- **Kanban Board** - Classic 4-column view (Open, In Progress, Blocked, Closed)
-- **Tree View** - Hierarchical parent-child relationships with interactive navigation
-- **Dependency Graph** - ASCII art visualization of issue dependencies
-- **Statistics Dashboard** - Comprehensive analytics with visual bar charts
+### 📊 Visualizations
+- **Kanban Board** - Stacked 2-column layout (Open + In Progress/Blocked) with optional detail panel
+- **Dashboard View** - Issue categorization (epics, tickets) with diagnostics for data quality
 
 ### 🎨 Rich User Experience
 - **Real-time Updates** - File watching with automatic refresh
 - **Search & Filter** - Full-text search across title, description, and ID
+- **Vim-style Command Bar** - `:` commands for quick actions (`:s o`, `:p 2`, `:theme ocean`)
 - **Custom Themes** - 5 built-in color schemes (Default, Ocean, Forest, Sunset, Monochrome)
-- **Responsive Layout** - Adapts to terminal size with smart column hiding
+- **Responsive Layout** - Adapts to terminal size with stacked columns
 - **Vim-style Navigation** - hjkl keys supported alongside arrow keys
 
 ### ⚡ Issue Management
@@ -132,17 +131,17 @@ The app will automatically discover the `.beads/` directory by walking up the di
 - `←/→` or `h/l` - Move left/right (change column in Kanban view)
 - `Enter` or `Space` - Toggle detail panel
 
-#### Views
-- `1` - Kanban board view (default)
-- `2` - Tree view (hierarchical)
-- `3` - Dependency graph
-- `4` - Statistics dashboard
+#### Views & Options
+- `T` (Shift+T) - Dashboard view (issue categorization)
+- `b` - Toggle Blocked column visibility
+- `p` - Toggle Parents only filter
+- `t` - Change theme
 
 #### Actions
+- `i` - Copy issue ID to clipboard
 - `N` (Shift+N) - Create new issue
 - `e` - Edit selected issue
 - `x` - Export/copy selected issue
-- `t` - Change theme
 
 #### Search & Filter
 - `/` - Open search (searches title, description, ID)
@@ -150,52 +149,48 @@ The app will automatically discover the `.beads/` directory by walking up the di
 - `c` - Clear all filters and search
 - `ESC` - Close search/filter/form panels
 
+#### Command Bar (`:`)
+- `:5` - Jump to page 5
+- `:bd-xxx` - Jump to issue by ID
+- `:s o/i/b/c` - Set status (open/in_progress/blocked/closed)
+- `:p 0-4` - Set priority
+- `:theme name` - Change theme
+- `:new` `:edit` `:q` - Create, edit, quit
+
 #### Other
 - `r` - Refresh data from database
 - `n` - Toggle notifications
-- `?` - Show help
+- `?` or `h` - Show help
 - `q` or `Ctrl+C` - Quit
 
 ## 🎨 Views
 
 ### Kanban View (Default)
-The main view shows issues organized in 4 columns:
-- **Open** - New or ready-to-work issues
-- **In Progress** - Currently being worked on
-- **Blocked** - Issues waiting on dependencies
-- **Closed** - Completed issues
+The main view uses a **stacked 2-column layout**:
+- **Left column**: Open issues
+- **Right column**: In Progress issues (with optional Blocked stacked below)
 
 Features:
 - Color-coded priorities (P0-P4)
 - Type indicators (epic, feature, bug, task, chore)
+- Subtask completion counters
 - Label tags
 - Per-column pagination and selection
-- Responsive layout (adapts to terminal size)
+- Detail panel (Space) and full detail view (Enter)
+- Toggle Blocked column with `b`
+- Toggle Parents only filter with `p`
 
-### Tree View
-Shows hierarchical parent-child relationships:
-- Navigate with ↑/↓ or k/j
-- Press Enter/Space to toggle details
-- Press `e` to edit selected issue
-- Visual tree structure with connection lines
-- Depth-aware indentation
-
-### Dependency Graph
-Visualizes issue dependencies:
-- Issues organized by dependency levels
-- Shows blocking relationships
-- Navigate with ↑/↓ or k/j
-- Color-coded by type and status
-- Displays parent-child and blocking relationships
-
-### Statistics Dashboard
-Comprehensive analytics:
-- **Status Distribution** - Visual bar chart of issue statuses
-- **Priority Breakdown** - Distribution across P0-P4
-- **Issue Type Distribution** - Epic, feature, bug, task, chore counts
-- **Key Metrics** - Completion rate, blocked rate, dependency count
-- **Top Assignees** - Most active team members
-- **Top Labels** - Most used labels
+### Dashboard View (Shift+T)
+Issue categorization and diagnostics:
+- **Active Section**: Epics and tickets currently in progress
+- **Completed Section**: Closed issues
+- **Problems Section**: Data quality diagnostics
+  - Orphaned acceptance criteria (ACs without parent tickets)
+  - Missing parent references
+  - Issues without type labels
+- Navigate sections with ←/→
+- Copy issue IDs with `i`
+- Press ESC to return to Kanban
 
 ## 🔔 Notifications
 
@@ -298,17 +293,15 @@ Removes all active search and filter criteria.
 ## 📊 Responsive Layout
 
 ### Terminal Size Adaptation
-- **Wide (>160 cols)**: All 4 columns + detail panel
-- **Medium (80-160 cols)**: All 4 columns
-- **Narrow (40-80 cols)**: 2 columns
-- **Very narrow (<40 cols)**: 1 column
+The stacked 2-column layout adapts to terminal size:
+- **Wide terminals**: Both columns + detail panel visible
+- **Medium terminals**: Both columns visible, detail panel hidden
+- **Narrow terminals**: Single column mode
 
 ### Minimum Requirements
 - Width: 80 columns (recommended: 120+)
 - Height: 24 rows (recommended: 30+)
 - True color support recommended but not required
-
-Terminal dimensions are shown in the header (e.g., "120x30").
 
 ## 🧪 Testing
 
@@ -363,12 +356,13 @@ bun run /path/to/bdui/src/index.tsx
 bdui/
 ├── src/
 │   ├── components/       # React/Ink components
-│   │   ├── App.tsx       # Main app with keyboard handling
+│   │   ├── App.tsx       # Main app with keyboard handling & command bar
 │   │   ├── Board.tsx     # View router
-│   │   ├── KanbanView/   # 4-column Kanban board
-│   │   ├── TreeView.tsx  # Hierarchical tree view
-│   │   ├── DependencyGraph.tsx
-│   │   ├── StatsView.tsx
+│   │   ├── StackedStatusColumns.tsx  # Stacked column layout
+│   │   ├── StatusColumn.tsx          # Individual status column
+│   │   ├── TotalListView.tsx         # Dashboard view
+│   │   ├── DetailPanel.tsx           # Sidebar detail panel
+│   │   ├── FullDetailPanel.tsx       # Full-screen detail view
 │   │   ├── CreateIssueForm.tsx
 │   │   ├── EditIssueForm.tsx
 │   │   ├── ExportDialog.tsx
@@ -376,7 +370,7 @@ bdui/
 │   │   └── ...
 │   ├── bd/               # bd integration
 │   │   ├── parser.ts     # SQLite database reading
-│   │   ├── watcher.ts    # File watching
+│   │   ├── watcher.ts    # File watching (WAL polling)
 │   │   └── commands.ts   # bd CLI integration
 │   ├── state/            # State management
 │   │   └── store.ts      # Zustand store
@@ -384,7 +378,8 @@ bdui/
 │   │   └── themes.ts
 │   ├── utils/            # Utilities
 │   │   ├── notifications.ts
-│   │   └── export.ts
+│   │   ├── export.ts
+│   │   └── settings.ts   # Persistent settings
 │   ├── types.ts          # TypeScript types
 │   └── index.tsx         # Entry point
 ├── assets/
@@ -393,6 +388,7 @@ bdui/
 │       ├── blocked.png
 │       └── README.md
 ├── CLAUDE.md             # Development documentation
+├── AGENTS.md             # bd workflow documentation
 ├── package.json
 └── README.md             # This file
 ```
