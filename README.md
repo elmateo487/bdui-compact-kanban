@@ -1,6 +1,6 @@
-# BD TUI 🎯
+# BD TUI Compact
 
-A beautiful, real-time Text User Interface (TUI) visualizer for the [bd (beads)](https://github.com/steveyegge/beads) issue tracker.
+A streamlined, real-time Kanban visualizer for the [bd (beads)](https://github.com/steveyegge/beads) issue tracker. This is a **compact fork** of [bdui](https://github.com/assimelha/bdui) optimized for LLM-assisted development workflows.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)
@@ -8,31 +8,53 @@ A beautiful, real-time Text User Interface (TUI) visualizer for the [bd (beads)]
 
 ![BD TUI Screenshot](assets/screenshot.png)
 
+## Why This Fork?
+
+This fork strips down bdui to focus on what matters for **LLM-driven development**:
+
+- **Kanban-only view** - Removed tree, graph, and stats views for simplicity
+- **Minimal interaction** - Designed for monitoring, not heavy terminal editing
+- **Live updates** - Reliable WAL polling so LLMs can track issue state changes in real-time
+- **Epic → Ticket → AC hierarchy** - Enforced via `type:epic`, `type:ticket`, `type:ac` labels
+
+### Ideal For
+
+- Running in a side terminal while an LLM works on your codebase
+- Quick visual confirmation of issue status changes
+- Monitoring epic/ticket/AC completion during development sessions
+- Lightweight issue triage without leaving the terminal
+
+## Issue Hierarchy
+
+This fork enforces a structured hierarchy using labels:
+
+| Type | Label | Description |
+|------|-------|-------------|
+| **Epic** | `type:epic` | Large feature or initiative with child tickets |
+| **Ticket** | `type:ticket` | Discrete work item, child of an epic |
+| **Acceptance Criteria** | `type:ac` | Specific requirement, child of a ticket |
+
+The **Dashboard view** (`Shift+T`) validates this hierarchy and flags:
+- Orphaned ACs (no parent ticket)
+- Missing parent references
+- Issues without type labels
+
 ## ✨ Features
 
-### 📊 Visualizations
-- **Kanban Board** - Stacked 2-column layout (Open + In Progress/Blocked) with optional detail panel
-- **Dashboard View** - Issue categorization (epics, tickets) with diagnostics for data quality
+### 📊 Focused Visualization
+- **Kanban Board** - Stacked 2-column layout (Open + In Progress/Blocked)
+- **Dashboard View** - Issue categorization with hierarchy validation
 
-### 🎨 Rich User Experience
-- **Real-time Updates** - File watching with automatic refresh
-- **Search & Filter** - Full-text search across title, description, and ID
-- **Vim-style Command Bar** - `:` commands for quick actions (`:s o`, `:p 2`, `:theme ocean`)
-- **Custom Themes** - 5 built-in color schemes (Default, Ocean, Forest, Sunset, Monochrome)
-- **Responsive Layout** - Adapts to terminal size with stacked columns
-- **Vim-style Navigation** - hjkl keys supported alongside arrow keys
+### 🔄 LLM-Friendly
+- **Real-time Updates** - WAL file polling catches every database change
+- **Minimal UI** - Less visual noise, easier to parse at a glance
+- **Full Detail Pane** - Press Enter for full-screen view with children navigation
+- **Parents-only Filter** - Toggle `p` to show only epics/tickets (hide ACs)
 
-### ⚡ Issue Management
-- **Create Issues** - Add new issues directly from the TUI
-- **Edit Issues** - Modify any field (title, description, priority, status, assignee, labels)
-- **Export/Copy** - Export issues in Markdown, JSON, or plain text format
-- **Desktop Notifications** - Native OS notifications with custom icons for status changes
-
-### 🎯 Smart Features
-- **Per-column Pagination** - Independent scroll positions for each status column
-- **Detail Panel** - View full issue details including all dependencies
-- **Blocked Status Detection** - Automatically moves issues with blockers to "Blocked" column
-- **Keyboard-first** - Every action accessible via keyboard shortcuts
+### 🎨 Lightweight Interaction
+- **Vim-style Command Bar** - Quick status/priority changes (`:s o`, `:p 2`)
+- **Copy Issue ID** - Press `i` to copy selected issue ID to clipboard
+- **Themes** - 5 color schemes for terminal preference
 
 ## 🚀 Installation
 
@@ -41,41 +63,12 @@ A beautiful, real-time Text User Interface (TUI) visualizer for the [bd (beads)]
 - [bd (beads)](https://github.com/steveyegge/beads) issue tracker
 - A `.beads/` directory with `beads.db` in your project
 
-### Homebrew (macOS)
-
-The easiest way to install on macOS:
-
-```bash
-brew tap assimelha/tap
-brew install bdui
-```
-
-To upgrade to the latest version:
-
-```bash
-brew upgrade bdui
-```
-
-### Download Pre-built Binary
-
-Download the latest release for your platform:
-- **macOS (ARM64)**: `bdui-macos-arm64`
-- **macOS (x64)**: `bdui-macos-x64`
-- **Linux (x64)**: `bdui-linux-x64`
-- **Windows (x64)**: `bdui-windows-x64.exe`
-
-Make it executable (Unix systems):
-```bash
-chmod +x bdui-macos-arm64
-./bdui-macos-arm64
-```
-
 ### Build from Source
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd bdui
+# Clone this fork
+git clone https://github.com/elmateo487/bdui-compact.git
+cd bdui-compact
 
 # Install dependencies
 bun install
@@ -91,20 +84,13 @@ bun run build
 ### Building for All Platforms
 
 ```bash
-# Build for macOS (both ARM64 and x64)
-bun run build:macos
-
-# Build for Linux x64
-bun run build:linux
-
-# Build for Windows x64
-bun run build:windows
-
-# Build for all platforms
-bun run build:all
+bun run build:macos   # ARM64 and x64
+bun run build:linux   # x64
+bun run build:windows # x64
+bun run build:all     # All platforms
 ```
 
-Binaries will be created in the `dist/` directory (~50-60 MB each, includes Bun runtime).
+Binaries are created in `dist/` (~50-60 MB each, includes Bun runtime).
 
 ## 📖 Usage
 
@@ -172,13 +158,13 @@ The main view uses a **stacked 2-column layout**:
 
 Features:
 - Color-coded priorities (P0-P4)
-- Type indicators (epic, feature, bug, task, chore)
-- Subtask completion counters
-- Label tags
+- Type indicators (epic, ticket, ac) with hierarchy badges
+- Subtask/AC completion counters (e.g., "2/5 ACs done")
 - Per-column pagination and selection
-- Detail panel (Space) and full detail view (Enter)
+- **Detail panel** (Space) - Sidebar with issue details
+- **Full detail view** (Enter) - Full-screen with markdown rendering, children list, and navigation between subtasks (Tab to switch sections, ↑/↓ to navigate children)
 - Toggle Blocked column with `b`
-- Toggle Parents only filter with `p`
+- **Parents-only filter** (`p`) - Hide ACs, show only epics and tickets
 
 ### Dashboard View (Shift+T)
 Issue categorization and diagnostics:
@@ -346,7 +332,7 @@ bun run /path/to/bdui/src/index.tsx
 
 ### Data Flow
 1. **Database Reading** - Direct SQLite queries to `beads.db`
-2. **File Watching** - Debounced `fs.watch` monitoring with 100ms debounce
+2. **File Watching** - WAL file size polling (500ms) for reliable change detection
 3. **State Management** - Zustand store with normalized data structure
 4. **Real-time Updates** - Pub/sub pattern for database changes
 5. **Notifications** - Status change detection with OS notifications
@@ -395,27 +381,14 @@ bdui/
 
 ## 🤝 Contributing
 
-Contributions are welcome! This project uses [bd (beads)](https://github.com/steveyegge/beads) for issue tracking.
+Contributions welcome! See `CLAUDE.md` for architecture documentation.
 
-### Development Setup
 ```bash
-# Clone repository
-git clone <repository-url>
-cd bdui
-
-# Install dependencies
+git clone https://github.com/elmateo487/bdui-compact.git
+cd bdui-compact
 bun install
-
-# Run in development mode
 bun run dev
 ```
-
-### Code Guidelines
-See `CLAUDE.md` for detailed architecture documentation and guidelines for:
-- Adding new view modes
-- Adding new filters
-- Creating new components
-- Modifying the data flow
 
 ## 📄 License
 
@@ -423,19 +396,11 @@ MIT License - See LICENSE file for details
 
 ## 🙏 Acknowledgments
 
+- [bdui](https://github.com/assimelha/bdui) - The original BD TUI this fork is based on
 - [bd (beads)](https://github.com/steveyegge/beads) - The issue tracker that powers this TUI
 - [Ink](https://github.com/vadimdemedes/ink) - React for CLIs
 - [Bun](https://bun.sh) - Fast JavaScript runtime
-- [Zustand](https://github.com/pmndrs/zustand) - State management
-- [node-notifier](https://github.com/mikaelbr/node-notifier) - Cross-platform notifications
-
-## 📞 Support
-
-For issues, questions, or contributions:
-1. Check the documentation in `CLAUDE.md`
-2. Review existing bd issues in this repository
-3. Create a new bd issue with detailed information
 
 ---
 
-**Made with ❤️ for developers who love the command line**
+**A compact fork of bdui for LLM-assisted development workflows**
