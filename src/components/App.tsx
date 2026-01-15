@@ -113,6 +113,7 @@ export function App() {
   const toggleExportDialog = useBeadsStore(state => state.toggleExportDialog);
   const toggleThemeSelector = useBeadsStore(state => state.toggleThemeSelector);
   const toggleBlockedColumn = useBeadsStore(state => state.toggleBlockedColumn);
+  const toggleRecentColumn = useBeadsStore(state => state.toggleRecentColumn);
   const toggleParentsOnly = useBeadsStore(state => state.toggleParentsOnly);
   const toggleFullDetail = useBeadsStore(state => state.toggleFullDetail);
   const pushFullDetail = useBeadsStore(state => state.pushFullDetail);
@@ -262,12 +263,19 @@ export function App() {
       return;
     }
 
-    // Refresh
-    if (input === 'r') {
+    // Toggle recent column
+    if (input === 'r' && viewMode === 'kanban') {
+      toggleRecentColumn();
+      return;
+    }
+
+    // Refresh (Option+R / Alt+R)
+    if (key.meta && input === 'r') {
       if (watcher) {
         watcher.reload();
         showToast('Data refreshed', 'info');
       }
+      return;
     }
 
     // Undo (Ctrl+Z or u)
@@ -400,6 +408,15 @@ export function App() {
     }
     if (key.rightArrow) {
       moveRight();
+    }
+
+    // Tab cycles columns in kanban view
+    if (key.tab && viewMode === 'kanban') {
+      const visibleColumnCount = useBeadsStore.getState().visibleColumnCount;
+      const currentColumn = useBeadsStore.getState().selectedColumn;
+      const nextColumn = (currentColumn + 1) % visibleColumnCount;
+      useBeadsStore.setState({ selectedColumn: nextColumn });
+      return;
     }
   });
 

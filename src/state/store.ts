@@ -4,7 +4,7 @@ import { detectStatusChanges, notifyStatusChange } from '../utils/notifications'
 import { LAYOUT } from '../utils/constants';
 import { loadSettings, saveSettings, setBeadsDir, type UISettings } from '../utils/settings';
 
-type StatusKey = 'open' | 'closed' | 'in_progress' | 'blocked';
+type StatusKey = 'open' | 'closed' | 'in_progress' | 'blocked' | 'recent';
 
 interface ColumnState {
   selectedIndex: number;
@@ -53,6 +53,7 @@ interface BeadsStore {
   showThemeSelector: boolean;
   showJumpToPage: boolean;
   showBlockedColumn: boolean;
+  showRecentColumn: boolean;
   showFullDetail: boolean;
   fullDetailStack: string[]; // Stack of issue IDs for navigation
   fullDetailSelectionHistory: number[]; // Stack of selected subtask indices (parallel to fullDetailStack)
@@ -94,6 +95,8 @@ interface BeadsStore {
   setFilter: (filter: BeadsStore['filter']) => void;
   getFilteredIssues: () => Issue[];
   getFilteredByStatus: () => Record<StatusKey, Issue[]>;
+  getVisibleStatusKeys: () => StatusKey[];
+  getItemsPerPageForStatus: (statusKey: StatusKey) => number;
   setTerminalSize: (width: number, height: number) => void;
   setVisibleColumnCount: (count: number) => void;
 
@@ -116,6 +119,7 @@ interface BeadsStore {
   toggleThemeSelector: () => void;
   toggleJumpToPage: () => void;
   toggleBlockedColumn: () => void;
+  toggleRecentColumn: () => void;
   toggleParentsOnly: () => void;
   initSettings: (beadsPath: string) => void;
   toggleFullDetail: () => void;
@@ -153,13 +157,14 @@ interface BeadsStore {
   clearUndoHistory: () => void;
 }
 
-const STATUS_KEYS: StatusKey[] = ['open', 'in_progress', 'blocked', 'closed'];
+const STATUS_KEYS: StatusKey[] = ['open', 'in_progress', 'blocked', 'recent', 'closed'];
 
 export const useBeadsStore = create<BeadsStore>((set, get) => ({
   data: {
     issues: [],
     byStatus: {
       'open': [],
+      'recent': [],
       'closed': [],
       'in_progress': [],
       'blocked': [],
@@ -184,6 +189,7 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   selectedColumn: 0,
   columnStates: {
     'open': { selectedIndex: 0, scrollOffset: 0 },
+    'recent': { selectedIndex: 0, scrollOffset: 0 },
     'in_progress': { selectedIndex: 0, scrollOffset: 0 },
     'blocked': { selectedIndex: 0, scrollOffset: 0 },
     'closed': { selectedIndex: 0, scrollOffset: 0 },
@@ -202,6 +208,7 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   showThemeSelector: false,
   showJumpToPage: false,
   showBlockedColumn: true,  // Default to visible, persisted in ui-settings.json
+  showRecentColumn: true,   // Default to visible, persisted in ui-settings.json
   showFullDetail: false,
   fullDetailStack: [],
   fullDetailSelectionHistory: [],
@@ -375,17 +382,33 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
       (filter.tags && filter.tags.length > 0)
     );
 
+    // Calculate 24 hours ago for recent filtering (used in both paths)
+    const twentyFourHoursAgoBase = Date.now() - (24 * 60 * 60 * 1000);
+
     if (!hasFilters) {
-      return data.byStatus;
+      // Still need to compute recent from closed items
+      const recent = (data.byStatus['closed'] || []).filter(issue => {
+        if (!issue.closed_at) return false;
+        const closedTime = new Date(issue.closed_at).getTime();
+        return closedTime >= twentyFourHoursAgoBase;
+      });
+      return {
+        ...data.byStatus,
+        'recent': recent,
+      };
     }
 
     const filteredIssues = get().getFilteredIssues();
     const byStatus: Record<StatusKey, Issue[]> = {
       'open': [],
+      'recent': [],
       'closed': [],
       'in_progress': [],
       'blocked': [],
     };
+
+    // Calculate 24 hours ago for recent filtering
+    const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
 
     filteredIssues.forEach(issue => {
       // Compute actual status - issues with open blockers are "blocked"
@@ -397,6 +420,14 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
 
       if (byStatus[actualStatus]) {
         byStatus[actualStatus].push(issue);
+      }
+
+      // Also add to recent if closed within last 24 hours
+      if (issue.status === 'closed' && issue.closed_at) {
+        const closedTime = new Date(issue.closed_at).getTime();
+        if (closedTime >= twentyFourHoursAgo) {
+          byStatus['recent'].push(issue);
+        }
       }
     });
 
@@ -431,14 +462,42 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
     return byStatus;
   },
 
+  getVisibleStatusKeys: () => {
+    const { showRecentColumn, showBlockedColumn } = get();
+    // Clockwise order: Open -> In Progress -> Blocked -> Recent
+    const keys: StatusKey[] = ['open', 'in_progress'];
+    if (showBlockedColumn) keys.push('blocked');
+    if (showRecentColumn) keys.push('recent');
+    return keys;
+  },
+
+  getItemsPerPageForStatus: (statusKey: StatusKey) => {
+    const { itemsPerPage, showRecentColumn, showBlockedColumn, terminalHeight } = get();
+    // Stacked columns (blocked, recent) have reduced items per page
+    const isStacked =
+      (statusKey === 'blocked' && showBlockedColumn) ||
+      (statusKey === 'recent' && showRecentColumn);
+    if (isStacked) {
+      // Calculate based on actual available height for stacked columns
+      const stackedColumnHeight = Math.floor((terminalHeight - 1) / 2); // -1 for status bar
+      const headerHeight = 3; // header with border
+      const scrollIndicatorHeight = 2; // reserve space for both indicators
+      const contentHeight = stackedColumnHeight - headerHeight - scrollIndicatorHeight;
+      return Math.max(1, Math.floor(contentHeight / LAYOUT.issueCardHeight));
+    }
+    return itemsPerPage;
+  },
+
   getStatusKey: () => {
     const { selectedColumn } = get();
-    return STATUS_KEYS[selectedColumn];
+    const visibleKeys = get().getVisibleStatusKeys();
+    return visibleKeys[selectedColumn] || 'open';
   },
 
   getSelectedIssue: () => {
     const { selectedColumn, columnStates } = get();
-    const statusKey = STATUS_KEYS[selectedColumn];
+    const visibleKeys = get().getVisibleStatusKeys();
+    const statusKey = visibleKeys[selectedColumn] || 'open';
     const filteredByStatus = get().getFilteredByStatus();
     const issues = filteredByStatus[statusKey] || [];
     const selectedIndex = columnStates[statusKey].selectedIndex;
@@ -449,10 +508,11 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
     const { columnStates, itemsPerPage } = get();
     const searchId = id.toLowerCase();
     const filteredByStatus = get().getFilteredByStatus();
+    const visibleKeys = get().getVisibleStatusKeys();
 
-    // Search through all status columns (filtered data)
-    for (let colIndex = 0; colIndex < STATUS_KEYS.length; colIndex++) {
-      const statusKey = STATUS_KEYS[colIndex];
+    // Search through visible status columns (filtered data)
+    for (let colIndex = 0; colIndex < visibleKeys.length; colIndex++) {
+      const statusKey = visibleKeys[colIndex];
       const issues = filteredByStatus[statusKey] || [];
 
       const issueIndex = issues.findIndex(issue =>
@@ -480,23 +540,28 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   },
 
   getTotalPages: () => {
-    const { selectedColumn, itemsPerPage } = get();
-    const statusKey = STATUS_KEYS[selectedColumn];
+    const { selectedColumn } = get();
+    const visibleKeys = get().getVisibleStatusKeys();
+    const statusKey = visibleKeys[selectedColumn] || 'open';
+    const itemsPerPage = get().getItemsPerPageForStatus(statusKey);
     const filteredByStatus = get().getFilteredByStatus();
     const issues = filteredByStatus[statusKey] || [];
     return Math.ceil(issues.length / itemsPerPage) || 1;
   },
 
   getCurrentPage: () => {
-    const { selectedColumn, columnStates, itemsPerPage } = get();
-    const statusKey = STATUS_KEYS[selectedColumn];
+    const { selectedColumn, columnStates } = get();
+    const visibleKeys = get().getVisibleStatusKeys();
+    const statusKey = visibleKeys[selectedColumn] || 'open';
+    const itemsPerPage = get().getItemsPerPageForStatus(statusKey);
     const scrollOffset = columnStates[statusKey].scrollOffset;
     return Math.floor(scrollOffset / itemsPerPage) + 1;
   },
 
   moveUp: () => {
-    const { selectedColumn, columnStates, itemsPerPage } = get();
-    const statusKey = STATUS_KEYS[selectedColumn];
+    const { selectedColumn, columnStates } = get();
+    const visibleKeys = get().getVisibleStatusKeys();
+    const statusKey = visibleKeys[selectedColumn] || 'open';
     const currentState = columnStates[statusKey];
 
     if (currentState.selectedIndex > 0) {
@@ -521,8 +586,10 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   },
 
   moveDown: () => {
-    const { selectedColumn, columnStates, itemsPerPage } = get();
-    const statusKey = STATUS_KEYS[selectedColumn];
+    const { selectedColumn, columnStates } = get();
+    const visibleKeys = get().getVisibleStatusKeys();
+    const statusKey = visibleKeys[selectedColumn] || 'open';
+    const itemsPerPage = get().getItemsPerPageForStatus(statusKey);
     const filteredByStatus = get().getFilteredByStatus();
     const issues = filteredByStatus[statusKey] || [];
     const currentState = columnStates[statusKey];
@@ -564,7 +631,8 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
 
   jumpToFirst: () => {
     const { selectedColumn, columnStates } = get();
-    const statusKey = STATUS_KEYS[selectedColumn];
+    const visibleKeys = get().getVisibleStatusKeys();
+    const statusKey = visibleKeys[selectedColumn] || 'open';
 
     set({
       columnStates: {
@@ -578,8 +646,10 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   },
 
   jumpToLast: () => {
-    const { selectedColumn, columnStates, itemsPerPage } = get();
-    const statusKey = STATUS_KEYS[selectedColumn];
+    const { selectedColumn, columnStates } = get();
+    const visibleKeys = get().getVisibleStatusKeys();
+    const statusKey = visibleKeys[selectedColumn] || 'open';
+    const itemsPerPage = get().getItemsPerPageForStatus(statusKey);
     const filteredByStatus = get().getFilteredByStatus();
     const issues = filteredByStatus[statusKey] || [];
     const lastIndex = Math.max(0, issues.length - 1);
@@ -597,8 +667,10 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   },
 
   jumpToPage: (page: number) => {
-    const { selectedColumn, columnStates, itemsPerPage } = get();
-    const statusKey = STATUS_KEYS[selectedColumn];
+    const { selectedColumn, columnStates } = get();
+    const visibleKeys = get().getVisibleStatusKeys();
+    const statusKey = visibleKeys[selectedColumn] || 'open';
+    const itemsPerPage = get().getItemsPerPageForStatus(statusKey);
     const filteredByStatus = get().getFilteredByStatus();
     const issues = filteredByStatus[statusKey] || [];
     const totalPages = Math.ceil(issues.length / itemsPerPage) || 1;
@@ -684,11 +756,53 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   },
 
   toggleBlockedColumn: () => {
-    set(state => {
-      const newValue = !state.showBlockedColumn;
-      saveSettings({ showBlockedColumn: newValue });
-      return { showBlockedColumn: newValue };
-    });
+    const state = get();
+    const newValue = !state.showBlockedColumn;
+
+    // Get current statusKey before toggle
+    const oldVisibleKeys = state.getVisibleStatusKeys();
+    const currentStatusKey = oldVisibleKeys[state.selectedColumn] || 'open';
+
+    // Compute new visible keys after toggle (clockwise: Open -> In Progress -> Blocked -> Recent)
+    const newVisibleKeys: StatusKey[] = ['open', 'in_progress'];
+    if (newValue) newVisibleKeys.push('blocked');
+    if (state.showRecentColumn) newVisibleKeys.push('recent');
+
+    // Find new index for current statusKey, or fallback
+    let newSelectedColumn = newVisibleKeys.indexOf(currentStatusKey);
+    if (newSelectedColumn === -1) {
+      // Was on blocked which is now hidden - go to in_progress
+      newSelectedColumn = newVisibleKeys.indexOf('in_progress');
+    }
+
+    saveSettings({ showBlockedColumn: newValue });
+    set({ showBlockedColumn: newValue, selectedColumn: newSelectedColumn });
+  },
+
+  toggleRecentColumn: () => {
+    const state = get();
+    const newValue = !state.showRecentColumn;
+
+    // Get current statusKey before toggle
+    const oldVisibleKeys = state.getVisibleStatusKeys();
+    const currentStatusKey = oldVisibleKeys[state.selectedColumn] || 'open';
+
+    // Compute new visible keys after toggle (clockwise: Open -> In Progress -> Blocked -> Recent)
+    const newVisibleKeys: StatusKey[] = ['open', 'in_progress'];
+    if (state.showBlockedColumn) newVisibleKeys.push('blocked');
+    if (newValue) newVisibleKeys.push('recent');
+
+    // Find new index for current statusKey, or fallback
+    let newSelectedColumn = newVisibleKeys.indexOf(currentStatusKey);
+    if (newSelectedColumn === -1) {
+      // Was on recent which is now hidden - go to blocked if visible, else in_progress
+      newSelectedColumn = state.showBlockedColumn
+        ? newVisibleKeys.indexOf('blocked')
+        : newVisibleKeys.indexOf('in_progress');
+    }
+
+    saveSettings({ showRecentColumn: newValue });
+    set({ showRecentColumn: newValue, selectedColumn: newSelectedColumn });
   },
 
   initSettings: (beadsPath: string) => {
@@ -696,6 +810,7 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
     const settings = loadSettings();
     set({
       showBlockedColumn: settings.showBlockedColumn,
+      showRecentColumn: settings.showRecentColumn,
       showDetails: settings.showDetails,
       currentTheme: settings.currentTheme,
     });

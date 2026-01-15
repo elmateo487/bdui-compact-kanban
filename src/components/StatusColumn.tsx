@@ -65,7 +65,7 @@ export function StatusColumn({
       )}
 
       {/* Issues list */}
-      <Box flexDirection="column" gap={1}>
+      <Box flexDirection="column" gap={0}>
         {totalIssues === 0 ? (
           <Box
             flexDirection="column"

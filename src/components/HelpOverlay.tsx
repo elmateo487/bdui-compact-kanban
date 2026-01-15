@@ -46,13 +46,15 @@ export function HelpOverlay() {
           <Text>  <Text color={theme.colors.primary}>N</Text>               Create new issue (Shift+N)</Text>
           <Text>  <Text color={theme.colors.primary}>e</Text>               Edit selected issue</Text>
           <Text>  <Text color={theme.colors.primary}>x</Text>               Export/copy selected issue</Text>
-          <Text>  <Text color={theme.colors.primary}>r</Text>               Refresh data</Text>
+          <Text>  <Text color={theme.colors.primary}>⌥r</Text>              Refresh data (Option+R)</Text>
         </Box>
 
         <Box flexDirection="column" gap={0} marginTop={1}>
           <Text bold color={theme.colors.warning}>View Options:</Text>
+          <Text>  <Text color={theme.colors.primary}>r</Text>               Toggle Recent column</Text>
           <Text>  <Text color={theme.colors.primary}>b</Text>               Toggle Blocked column</Text>
           <Text>  <Text color={theme.colors.primary}>p</Text>               Toggle Parents only</Text>
+          <Text>  <Text color={theme.colors.primary}>Tab</Text>             Cycle columns</Text>
           <Text>  <Text color={theme.colors.primary}>T</Text>               Dashboard view (Shift+T)</Text>
           <Text>  <Text color={theme.colors.primary}>t</Text>               Change theme</Text>
         </Box>

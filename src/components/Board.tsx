@@ -37,6 +37,7 @@ function KanbanView() {
   const showThemeSelector = useBeadsStore(state => state.showThemeSelector);
   const showJumpToPage = useBeadsStore(state => state.showJumpToPage);
   const showBlockedColumn = useBeadsStore(state => state.showBlockedColumn);
+  const showRecentColumn = useBeadsStore(state => state.showRecentColumn);
   const setVisibleColumnCount = useBeadsStore(state => state.setVisibleColumnCount);
   const toggleExportDialog = useBeadsStore(state => state.toggleExportDialog);
   const toggleThemeSelector = useBeadsStore(state => state.toggleThemeSelector);
@@ -65,10 +66,14 @@ function KanbanView() {
     // Rebuild byStatus structure
     const byStatus: Record<string, Issue[]> = {
       'open': [],
+      'recent': [],
       'closed': [],
       'in_progress': [],
       'blocked': [],
     };
+
+    // Calculate 24 hours ago for recent filtering
+    const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
 
     filteredIssues.forEach(issue => {
       // Compute actual status - issues with open blockers are "blocked"
@@ -80,6 +85,14 @@ function KanbanView() {
 
       if (byStatus[actualStatus]) {
         byStatus[actualStatus].push(issue);
+      }
+
+      // Also add to recent if closed within last 24 hours
+      if (issue.status === 'closed' && issue.closed_at) {
+        const closedTime = new Date(issue.closed_at).getTime();
+        if (closedTime >= twentyFourHoursAgo) {
+          byStatus['recent'].push(issue);
+        }
       }
     });
 
@@ -124,10 +137,13 @@ function KanbanView() {
     };
   }, [data, searchQuery, filter, getFilteredIssues, needsFiltering]);
 
-  // With stacked layout: Open is column 0, In Progress (+ optional Blocked) is column 1
-  // Navigation uses 2 or 3 logical columns depending on showBlockedColumn
-  const maxColumns = showBlockedColumn ? 3 : 2;
-  const visualColumns = 2; // Open + InProgress (with optional Blocked stacked)
+  // Get visible status keys from store
+  const getVisibleStatusKeys = useBeadsStore(state => state.getVisibleStatusKeys);
+  const visibleStatusKeys = getVisibleStatusKeys();
+
+  // Navigation uses visible column count (dynamic based on toggles)
+  const maxColumns = visibleStatusKeys.length;
+  const visualColumns = 2; // Open (+ optional Recent stacked) + InProgress (+ optional Blocked stacked)
 
   // Responsive layout calculations
   const BASE_COLUMN_WIDTH = LAYOUT.columnWidth;
@@ -166,6 +182,7 @@ function KanbanView() {
         <Box gap={2}>
           <Text color={theme.colors.textDim}>Total: <Text color={theme.colors.text}>{stats.total}</Text></Text>
           <Text color={theme.colors.textDim}>Blocked: <Text color={theme.colors.statusBlocked}>{stats.blocked}</Text></Text>
+          <Text color={theme.colors.textDim}>(r)ecent:<Text color={showRecentColumn ? theme.colors.success : theme.colors.textDim}>{showRecentColumn ? 'ON' : 'off'}</Text></Text>
           <Text color={theme.colors.textDim}>(b)locked:<Text color={showBlockedColumn ? theme.colors.success : theme.colors.textDim}>{showBlockedColumn ? 'ON' : 'off'}</Text></Text>
           <Text color={theme.colors.textDim}>(n)otif:<Text color={notificationsEnabled ? theme.colors.success : theme.colors.textDim}>{notificationsEnabled ? 'ON' : 'off'}</Text></Text>
           <Text color={theme.colors.textDim}>(h)elp (q)uit</Text>
@@ -181,26 +198,48 @@ function KanbanView() {
 
       {/* Main content */}
       <Box flexGrow={1} overflow="hidden">
-        {/* Board columns: Open + Stacked(InProgress/Blocked) */}
+        {/* Board columns: Open (+ optional Recent) + InProgress (+ optional Blocked) */}
         <Box flexShrink={0}>
-          {/* Open column - full height */}
-          <StatusColumn
-            title="Open"
-            issues={filteredData.byStatus['open'] || []}
-            isActive={selectedColumn === 0}
-            selectedIndex={columnStates['open'].selectedIndex}
-            scrollOffset={columnStates['open'].scrollOffset}
-            itemsPerPage={itemsPerPage}
-            statusKey="open"
-            width={columnWidth}
-          />
+          {/* Open column - full height when recent hidden */}
+          {!showRecentColumn && (
+            <StatusColumn
+              title="Open"
+              issues={filteredData.byStatus['open'] || []}
+              isActive={selectedColumn === visibleStatusKeys.indexOf('open')}
+              selectedIndex={columnStates['open'].selectedIndex}
+              scrollOffset={columnStates['open'].scrollOffset}
+              itemsPerPage={itemsPerPage}
+              statusKey="open"
+              width={columnWidth}
+            />
+          )}
+
+          {/* Stacked Open / Recent columns when recent is shown */}
+          {showRecentColumn && (
+            <StackedStatusColumns
+              topTitle="Open"
+              topIssues={filteredData.byStatus['open'] || []}
+              topIsActive={selectedColumn === visibleStatusKeys.indexOf('open')}
+              topSelectedIndex={columnStates['open'].selectedIndex}
+              topScrollOffset={columnStates['open'].scrollOffset}
+              topStatusKey="open"
+              bottomTitle="Recent (24h)"
+              bottomIssues={filteredData.byStatus['recent'] || []}
+              bottomIsActive={selectedColumn === visibleStatusKeys.indexOf('recent')}
+              bottomSelectedIndex={columnStates['recent'].selectedIndex}
+              bottomScrollOffset={columnStates['recent'].scrollOffset}
+              bottomStatusKey="recent"
+              totalHeight={stackedColumnHeight}
+              width={columnWidth}
+            />
+          )}
 
           {/* In Progress column - full height when blocked hidden, stacked when shown */}
           {showBothVisualColumns && !showBlockedColumn && (
             <StatusColumn
               title="In Progress"
               issues={filteredData.byStatus['in_progress'] || []}
-              isActive={selectedColumn === 1}
+              isActive={selectedColumn === visibleStatusKeys.indexOf('in_progress')}
               selectedIndex={columnStates['in_progress'].selectedIndex}
               scrollOffset={columnStates['in_progress'].scrollOffset}
               itemsPerPage={itemsPerPage}
@@ -214,18 +253,17 @@ function KanbanView() {
             <StackedStatusColumns
               topTitle="In Progress"
               topIssues={filteredData.byStatus['in_progress'] || []}
-              topIsActive={selectedColumn === 1}
+              topIsActive={selectedColumn === visibleStatusKeys.indexOf('in_progress')}
               topSelectedIndex={columnStates['in_progress'].selectedIndex}
               topScrollOffset={columnStates['in_progress'].scrollOffset}
               topStatusKey="in_progress"
               bottomTitle="Blocked"
               bottomIssues={filteredData.byStatus['blocked'] || []}
-              bottomIsActive={selectedColumn === 2}
+              bottomIsActive={selectedColumn === visibleStatusKeys.indexOf('blocked')}
               bottomSelectedIndex={columnStates['blocked'].selectedIndex}
               bottomScrollOffset={columnStates['blocked'].scrollOffset}
               bottomStatusKey="blocked"
               totalHeight={stackedColumnHeight}
-              itemsPerPage={itemsPerPage}
               width={columnWidth}
             />
           )}

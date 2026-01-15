@@ -6,15 +6,26 @@ import { useBeadsStore } from '../state/store';
 import { getTheme } from '../themes/themes';
 import { LAYOUT, getStatusColor } from '../utils/constants';
 
+// Calculate items per page based on available height
+function calculateItemsPerPage(height: number, hasScrollUp: boolean, hasScrollDown: boolean): number {
+  // Header with border = 3 lines
+  const headerHeight = 3;
+  // Each scroll indicator = 1 line
+  const scrollUpHeight = hasScrollUp ? 1 : 0;
+  const scrollDownHeight = hasScrollDown ? 1 : 0;
+
+  const contentHeight = height - headerHeight - scrollUpHeight - scrollDownHeight;
+  return Math.max(1, Math.floor(contentHeight / LAYOUT.issueCardHeight));
+}
+
 interface StackedColumnProps {
   title: string;
   issues: Issue[];
   isActive: boolean;
   selectedIndex: number;
   scrollOffset: number;
-  itemsPerPage: number;
   statusKey: string;
-  height: number;
+  itemsPerPage: number;
   width: number;
 }
 
@@ -24,9 +35,8 @@ function MiniStatusColumn({
   isActive,
   selectedIndex,
   scrollOffset,
-  itemsPerPage,
   statusKey,
-  height,
+  itemsPerPage,
   width,
 }: StackedColumnProps) {
   const currentTheme = useBeadsStore(state => state.currentTheme);
@@ -42,13 +52,14 @@ function MiniStatusColumn({
   const statusColor = getStatusColor(statusKey, theme);
 
   return (
-    <Box flexDirection="column" height={height}>
+    <Box flexDirection="column" flexGrow={1} flexBasis={0}>
       {/* Header */}
       <Box
         borderStyle={isActive ? 'double' : 'single'}
         borderColor={isActive ? theme.colors.primary : statusColor}
         paddingX={1}
         justifyContent="center"
+        flexShrink={0}
       >
         <Text bold color={isActive ? theme.colors.primary : statusColor}>
           {title} ({totalIssues})
@@ -57,7 +68,7 @@ function MiniStatusColumn({
 
       {/* Scroll up indicator */}
       {hasLess && (
-        <Box justifyContent="center">
+        <Box justifyContent="center" flexShrink={0}>
           <Text color={theme.colors.warning} bold>
             [{itemsAbove}↑]
           </Text>
@@ -65,7 +76,7 @@ function MiniStatusColumn({
       )}
 
       {/* Issues list */}
-      <Box flexDirection="column" gap={0} flexGrow={1} overflow="hidden">
+      <Box flexDirection="column" gap={0} flexShrink={0}>
         {totalIssues === 0 ? (
           <Box paddingX={1} paddingY={1}>
             <Text color={theme.colors.textDim} italic>
@@ -90,7 +101,7 @@ function MiniStatusColumn({
 
       {/* Scroll down indicator */}
       {hasMore && (
-        <Box justifyContent="center">
+        <Box justifyContent="center" flexShrink={0}>
           <Text color={theme.colors.warning} bold>
             [{itemsBelow}↓]
           </Text>
@@ -114,7 +125,6 @@ interface StackedStatusColumnsProps {
   bottomScrollOffset: number;
   bottomStatusKey: string;
   totalHeight: number;
-  itemsPerPage: number;
   width?: number;
 }
 
@@ -132,13 +142,11 @@ export function StackedStatusColumns({
   bottomScrollOffset,
   bottomStatusKey,
   totalHeight,
-  itemsPerPage,
   width = LAYOUT.columnWidth,
 }: StackedStatusColumnsProps) {
-  // Split height equally between top and bottom, accounting for headers
+  // Calculate items per page based on half the available height
   const halfHeight = Math.floor(totalHeight / 2);
-  // Reduce items per page for stacked columns since they have less space
-  const stackedItemsPerPage = Math.max(1, Math.floor(itemsPerPage / 2) - 1);
+  const itemsPerPage = calculateItemsPerPage(halfHeight, false, true);
 
   return (
     <Box flexDirection="column" width={width} height={totalHeight}>
@@ -148,9 +156,8 @@ export function StackedStatusColumns({
         isActive={topIsActive}
         selectedIndex={topSelectedIndex}
         scrollOffset={topScrollOffset}
-        itemsPerPage={stackedItemsPerPage}
         statusKey={topStatusKey}
-        height={halfHeight}
+        itemsPerPage={itemsPerPage}
         width={width}
       />
       <MiniStatusColumn
@@ -159,9 +166,8 @@ export function StackedStatusColumns({
         isActive={bottomIsActive}
         selectedIndex={bottomSelectedIndex}
         scrollOffset={bottomScrollOffset}
-        itemsPerPage={stackedItemsPerPage}
         statusKey={bottomStatusKey}
-        height={halfHeight}
+        itemsPerPage={itemsPerPage}
         width={width}
       />
     </Box>

@@ -5,12 +5,14 @@ const SETTINGS_FILE = 'ui-settings.json';
 
 export interface UISettings {
   showBlockedColumn: boolean;
+  showRecentColumn: boolean;
   showDetails: boolean;
   currentTheme: string;
 }
 
 const DEFAULT_SETTINGS: UISettings = {
   showBlockedColumn: true,  // Default to visible
+  showRecentColumn: true,   // Default to visible
   showDetails: false,
   currentTheme: 'dark',
 };
