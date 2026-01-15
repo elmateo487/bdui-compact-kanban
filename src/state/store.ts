@@ -440,16 +440,8 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
       }).length;
     };
 
-    // Sort each status column: priority ASC (P0 first), then closed task count DESC, then created time DESC
+    // Sort each status column: created time DESC (newest first)
     const sortIssues = (a: Issue, b: Issue): number => {
-      if (a.priority !== b.priority) {
-        return a.priority - b.priority;
-      }
-      const aClosedCount = getClosedChildCount(a);
-      const bClosedCount = getClosedChildCount(b);
-      if (aClosedCount !== bClosedCount) {
-        return bClosedCount - aClosedCount;
-      }
       const aCreated = new Date(a.created_at).getTime();
       const bCreated = new Date(b.created_at).getTime();
       return bCreated - aCreated;

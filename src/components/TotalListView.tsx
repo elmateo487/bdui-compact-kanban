@@ -86,14 +86,13 @@ export function TotalListView({ terminalWidth, terminalHeight }: TotalListViewPr
       }
     }
 
-    // Sort epics and tickets by priority, then by created date
-    const sortByPriority = (a: Issue, b: Issue) => {
-      if (a.priority !== b.priority) return a.priority - b.priority;
+    // Sort epics and tickets by created date (newest first)
+    const sortByCreated = (a: Issue, b: Issue) => {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     };
 
-    epics.sort(sortByPriority);
-    tickets.sort(sortByPriority);
+    epics.sort(sortByCreated);
+    tickets.sort(sortByCreated);
 
     return {
       activeEpics: epics.filter(e => e.status !== 'closed'),
