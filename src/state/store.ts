@@ -259,6 +259,23 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
   setData: (data) => {
     const state = get();
 
+    // Capture currently selected issue IDs before updating data
+    const oldFilteredByStatus = state.getFilteredByStatus();
+    const selectedIssueIds: Record<StatusKey, string | null> = {
+      open: null,
+      recent: null,
+      closed: null,
+      in_progress: null,
+      blocked: null,
+    };
+    for (const statusKey of STATUS_KEYS) {
+      const issues = oldFilteredByStatus[statusKey] || [];
+      const idx = state.columnStates[statusKey].selectedIndex;
+      if (idx >= 0 && idx < issues.length) {
+        selectedIssueIds[statusKey] = issues[idx].id;
+      }
+    }
+
     // Detect status changes and notify (only if enabled)
     if (state.notificationsEnabled) {
       const changes = detectStatusChanges(state.previousIssues, data.byId);
@@ -267,7 +284,7 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
       }
     }
 
-    // First update data and reset full detail scroll state (forces UI redraw)
+    // Update data and reset full detail scroll state (forces UI redraw)
     set({
       data,
       previousIssues: new Map(data.byId), // Clone for next comparison
@@ -277,19 +294,35 @@ export const useBeadsStore = create<BeadsStore>((set, get) => ({
       fullDetailSectionIndex: -1,
     });
 
-    // Now validate column states against filtered data
+    // Now validate column states against filtered data, preserving selection by ID
     const filteredByStatus = get().getFilteredByStatus();
     const newColumnStates = { ...state.columnStates };
     for (const statusKey of STATUS_KEYS) {
-      const issuesInColumn = filteredByStatus[statusKey]?.length || 0;
+      const issues = filteredByStatus[statusKey] || [];
+      const issuesInColumn = issues.length;
       const currentState = newColumnStates[statusKey];
+      const selectedId = selectedIssueIds[statusKey];
 
-      if (currentState.selectedIndex >= issuesInColumn) {
+      // Try to find the previously selected issue by ID
+      let newIndex = -1;
+      if (selectedId) {
+        newIndex = issues.findIndex(issue => issue.id === selectedId);
+      }
+
+      if (newIndex >= 0) {
+        // Found the same issue, update index to its new position
+        newColumnStates[statusKey] = {
+          selectedIndex: newIndex,
+          scrollOffset: Math.min(currentState.scrollOffset, Math.max(0, issuesInColumn - 1)),
+        };
+      } else if (currentState.selectedIndex >= issuesInColumn) {
+        // Issue was deleted and index is out of bounds, move to last item
         newColumnStates[statusKey] = {
           selectedIndex: Math.max(0, issuesInColumn - 1),
           scrollOffset: 0,
         };
       }
+      // Otherwise keep current index (issue deleted but index still valid)
     }
 
     set({ columnStates: newColumnStates });
