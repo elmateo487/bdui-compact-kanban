@@ -30,6 +30,15 @@ export function ConfirmDialog() {
 
   if (!showConfirmDialog || !confirmDialogData) return null;
 
+  const dialogWidth = 50;
+  const bgColor = theme.colors.background;
+
+  // Helper to pad text to fill width with background
+  const padLine = (content: string, width: number) => {
+    const padding = Math.max(0, width - content.length);
+    return content + ' '.repeat(padding);
+  };
+
   return (
     <Box
       position="absolute"
@@ -38,31 +47,44 @@ export function ConfirmDialog() {
       flexDirection="column"
       borderStyle="double"
       borderColor={theme.colors.warning}
-      padding={2}
-      width={50}
+      width={dialogWidth}
     >
-      <Text bold color={theme.colors.warning}>
-        {confirmDialogData.title}
+      {/* Title row with background */}
+      <Text backgroundColor={bgColor} color={theme.colors.warning} bold>
+        {padLine(`  ${confirmDialogData.title}`, dialogWidth - 2)}
       </Text>
 
-      <Box marginY={1}>
-        <Text>{confirmDialogData.message}</Text>
-      </Box>
+      {/* Empty row */}
+      <Text backgroundColor={bgColor}>{padLine('', dialogWidth - 2)}</Text>
 
-      <Box gap={2} justifyContent="center">
-        <Text>
-          <Text color={theme.colors.success} bold>[Y]</Text>
-          <Text> Yes</Text>
-        </Text>
-        <Text>
-          <Text color={theme.colors.error} bold>[N]</Text>
-          <Text> No</Text>
-        </Text>
-      </Box>
+      {/* Message row */}
+      <Text backgroundColor={bgColor}>
+        {padLine(`  ${confirmDialogData.message}`, dialogWidth - 2)}
+      </Text>
 
-      <Box marginTop={1} justifyContent="center">
-        <Text dimColor>Press Y to confirm, N or ESC to cancel</Text>
-      </Box>
+      {/* Empty row */}
+      <Text backgroundColor={bgColor}>{padLine('', dialogWidth - 2)}</Text>
+
+      {/* Buttons row */}
+      <Text backgroundColor={bgColor}>
+        {padLine('', 10)}
+        <Text color={theme.colors.success} backgroundColor={bgColor} bold>[Y]</Text>
+        <Text backgroundColor={bgColor}> Yes    </Text>
+        <Text color={theme.colors.error} backgroundColor={bgColor} bold>[N]</Text>
+        <Text backgroundColor={bgColor}> No</Text>
+        {padLine('', 10)}
+      </Text>
+
+      {/* Empty row */}
+      <Text backgroundColor={bgColor}>{padLine('', dialogWidth - 2)}</Text>
+
+      {/* Help text row */}
+      <Text backgroundColor={bgColor} dimColor>
+        {padLine('  Press Y to confirm, N or ESC to cancel', dialogWidth - 2)}
+      </Text>
+
+      {/* Bottom padding */}
+      <Text backgroundColor={bgColor}>{padLine('', dialogWidth - 2)}</Text>
     </Box>
   );
 }
