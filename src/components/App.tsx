@@ -5,6 +5,7 @@ import { Board } from './Board';
 import { FullDetailPanel } from './FullDetailPanel';
 import { BeadsWatcher } from '../bd/watcher';
 import { loadBeads, findBeadsDir } from '../bd/parser';
+import { deleteIssue } from '../bd/commands';
 import { getTheme } from '../themes/themes';
 import { copyToClipboard } from '../utils/export';
 import { LAYOUT } from '../utils/constants';
@@ -136,6 +137,7 @@ export function App() {
   const showThemeSelector = useBeadsStore(state => state.showThemeSelector);
   const showJumpToPage = useBeadsStore(state => state.showJumpToPage);
   const showConfirmDialog = useBeadsStore(state => state.showConfirmDialog);
+  const showConfirm = useBeadsStore(state => state.showConfirm);
   const showToast = useBeadsStore(state => state.showToast);
   const undo = useBeadsStore(state => state.undo);
   const reloadCallback = useBeadsStore(state => state.reloadCallback);
@@ -198,6 +200,27 @@ export function App() {
           copyToClipboard(copyText)
             .then(() => showToast(`Copied: ${currentIssue.id}`, 'success'))
             .catch((err) => showToast(`Copy failed: ${err.message}`, 'error'));
+        }
+        return;
+      }
+      // Delete issue
+      if (input === 'd' || input === 'D') {
+        const currentId = fullDetailStack[fullDetailStack.length - 1];
+        const currentIssue = data.byId.get(currentId);
+        if (currentIssue) {
+          showConfirm(
+            'Delete Issue',
+            `Delete "${currentIssue.title}" (${currentIssue.id})?`,
+            () => {
+              deleteIssue(currentIssue.id)
+                .then(() => {
+                  showToast(`Deleted: ${currentIssue.id}`, 'success');
+                  popFullDetail();
+                  if (reloadCallback) reloadCallback();
+                })
+                .catch((err) => showToast(`Delete failed: ${err.message}`, 'error'));
+            }
+          );
         }
         return;
       }
@@ -310,6 +333,28 @@ export function App() {
         copyToClipboard(copyText)
           .then(() => showToast(`Copied: ${issue.id}`, 'success'))
           .catch((err) => showToast(`Copy failed: ${err.message}`, 'error'));
+      } else {
+        showToast('No issue selected', 'info');
+      }
+      return;
+    }
+
+    // Delete issue (kanban view)
+    if ((input === 'd' || input === 'D') && viewMode === 'kanban') {
+      const issue = getSelectedIssue();
+      if (issue) {
+        showConfirm(
+          'Delete Issue',
+          `Delete "${issue.title}" (${issue.id})?`,
+          () => {
+            deleteIssue(issue.id)
+              .then(() => {
+                showToast(`Deleted: ${issue.id}`, 'success');
+                if (reloadCallback) reloadCallback();
+              })
+              .catch((err) => showToast(`Delete failed: ${err.message}`, 'error'));
+          }
+        );
       } else {
         showToast('No issue selected', 'info');
       }

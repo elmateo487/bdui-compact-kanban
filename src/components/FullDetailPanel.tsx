@@ -143,7 +143,7 @@ export function FullDetailPanel({ issue }: FullDetailPanelProps) {
         <Box justifyContent="space-between">
           <Text color={theme.colors.textDim}>{issue.id}</Text>
           <Text color={theme.colors.textDim}>
-            ESC: {stackDepth > 1 ? 'back' : 'close'} | i: copy | Tab: next | ↑↓: {isInDescriptionMode ? 'scroll' : 'select'} | Enter: view
+            ESC: {stackDepth > 1 ? 'back' : 'close'} | i: copy | d: delete | ↑↓: {isInDescriptionMode ? 'scroll' : 'select'}
           </Text>
         </Box>
         {issue.parent && (() => {

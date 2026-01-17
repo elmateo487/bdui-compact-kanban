@@ -278,7 +278,7 @@ export function DetailPanel({ issue, maxHeight, width, collapsed }: DetailPanelP
       </Text>
 
       {/* Actions hint */}
-      <Text color={theme.colors.textDim} dimColor> Enter: full | i: copy | e: edit | x: export</Text>
+      <Text color={theme.colors.textDim} dimColor> Enter: full | i: copy | e: edit | d: delete</Text>
     </Box>
   );
 }
