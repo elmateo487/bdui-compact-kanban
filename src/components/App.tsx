@@ -3,6 +3,7 @@ import { Box, Text, useInput, useApp, useStdout } from 'ink';
 import { useBeadsStore } from '../state/store';
 import { Board } from './Board';
 import { FullDetailPanel } from './FullDetailPanel';
+import { ConfirmDialog } from './ConfirmDialog';
 import { BeadsWatcher } from '../bd/watcher';
 import { loadBeads, findBeadsDir } from '../bd/parser';
 import { deleteIssue } from '../bd/commands';
@@ -490,7 +491,12 @@ export function App() {
     const currentId = fullDetailStack[fullDetailStack.length - 1];
     const fullDetailIssue = data.byId.get(currentId);
     if (fullDetailIssue) {
-      return <FullDetailPanel issue={fullDetailIssue} />;
+      return (
+        <>
+          <FullDetailPanel issue={fullDetailIssue} />
+          <ConfirmDialog />
+        </>
+      );
     }
   }
 
