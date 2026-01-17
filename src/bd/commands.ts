@@ -159,15 +159,10 @@ export async function getLabels(): Promise<string[]> {
 
 /**
  * Delete an issue using bd CLI
- * Uses --hard --force for permanent deletion (no tombstones)
- * Use --cascade to also delete dependent issues
+ * Uses --hard --force --cascade for permanent deletion with children
  */
-export async function deleteIssue(id: string, options?: { cascade?: boolean; reason?: string }): Promise<void> {
-  const args = ['bd', 'delete', id, '--hard', '--force'];
-
-  if (options?.cascade) {
-    args.push('--cascade');
-  }
+export async function deleteIssue(id: string, options?: { reason?: string }): Promise<void> {
+  const args = ['bd', 'delete', id, '--hard', '--force', '--cascade'];
 
   if (options?.reason) {
     args.push('--reason', `"${options.reason}"`);
