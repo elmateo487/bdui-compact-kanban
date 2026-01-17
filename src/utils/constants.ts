@@ -7,7 +7,7 @@ import { getTheme, type Theme } from '../themes/themes';
 export const LAYOUT = {
   columnWidth: 24,
   detailPanelWidth: 28,
-  uiOverhead: 17,
+  uiOverhead: 6, // Status bar (1) + column header with border (3) + scroll indicators (2)
   issueCardHeight: 5, // Compact cards: 2-line title + info line + border
   titleMaxLength: 20,
   descriptionMaxLength: 200,
