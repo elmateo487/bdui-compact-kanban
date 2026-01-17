@@ -31,12 +31,7 @@ export function ConfirmDialog() {
   if (!showConfirmDialog || !confirmDialogData) return null;
 
   const dialogWidth = 50;
-  const dialogHeight = 10; // Approximate height including border
   const bgColor = theme.colors.background;
-
-  // Center the dialog
-  const top = Math.max(0, Math.floor((terminalHeight - dialogHeight) / 2));
-  const left = Math.max(0, Math.floor((terminalWidth - dialogWidth) / 2));
 
   // Helper to pad text to fill width with background
   const padLine = (content: string, width: number) => {
@@ -47,13 +42,17 @@ export function ConfirmDialog() {
   return (
     <Box
       position="absolute"
-      top={top}
-      left={left}
-      flexDirection="column"
-      borderStyle="double"
-      borderColor={theme.colors.warning}
-      width={dialogWidth}
+      width="100%"
+      height="100%"
+      justifyContent="center"
+      alignItems="center"
     >
+      <Box
+        flexDirection="column"
+        borderStyle="double"
+        borderColor={theme.colors.warning}
+        width={dialogWidth}
+      >
       {/* Title row with background */}
       <Text backgroundColor={bgColor} color={theme.colors.warning} bold>
         {padLine(`  ${confirmDialogData.title}`, dialogWidth - 2)}
@@ -90,6 +89,7 @@ export function ConfirmDialog() {
 
       {/* Bottom padding */}
       <Text backgroundColor={bgColor}>{padLine('', dialogWidth - 2)}</Text>
+      </Box>
     </Box>
   );
 }
