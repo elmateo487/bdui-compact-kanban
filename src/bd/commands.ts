@@ -74,16 +74,16 @@ export async function createIssue(params: CreateIssueParams): Promise<string> {
  * Update an existing issue using bd CLI
  */
 export async function updateIssue(params: UpdateIssueParams): Promise<void> {
-  const args: string[] = ['bd', 'edit', params.id];
+  const args: string[] = ['bd', 'update', params.id];
 
   // Add title if provided
   if (params.title) {
-    args.push('-t', params.title);
+    args.push('--title', `"${params.title}"`);
   }
 
   // Add description if provided
   if (params.description !== undefined) {
-    args.push('-d', params.description);
+    args.push('-d', `"${params.description}"`);
   }
 
   // Add priority if provided
@@ -98,12 +98,12 @@ export async function updateIssue(params: UpdateIssueParams): Promise<void> {
 
   // Add assignee if provided
   if (params.assignee !== undefined) {
-    args.push('-a', params.assignee || '');
+    args.push('-a', params.assignee || '""');
   }
 
   // Add labels if provided
   if (params.labels) {
-    args.push('-l', params.labels.join(','));
+    args.push('--set-labels', params.labels.join(','));
   }
 
   try {
